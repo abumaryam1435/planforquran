@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+.wrapper {
+  width: 794px;
+  height: 1123px;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  background: lightblue;
+  border: 1px solid black;
+}
+.inner {
+  transform: scale(0.748);
+  transform-origin: top center;
+  height: 1500px;
+  width: 794px;
+  max-height: none;
+  flex-shrink: 0;
+  background: rgba(255,0,0,0.5);
+  display: flex;
+  flex-direction: column;
+}
+.header { height: 100px; background: yellow; }
+.content { flex-grow: 1; background: green; }
+.footer { height: 50px; background: pink; }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="inner">
+    <div class="header">Header</div>
+    <div class="content">Content</div>
+    <div class="footer">Footer</div>
+  </div>
+</div>
+</body>
+</html>
