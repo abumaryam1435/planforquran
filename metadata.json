@@ -1,0 +1,8 @@
+{
+  "name": "(محلي) خطة حفظ القرآن",
+  "description": "تطبيق ذكي لإنشاء ومتابعة خطط حفظ القرآن الكريم مع مراجعات أسبوعية وتراكمية وإحصائيات مفصلة.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
