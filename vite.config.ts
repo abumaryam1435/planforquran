@@ -50,7 +50,7 @@ export default defineConfig(({mode}) => {
                   statuses: [0, 200]
                 },
                 expiration: {
-                  maxEntries: 700,
+                  maxEntries: 1000,
                   maxAgeSeconds: 60 * 60 * 24 * 365
                 }
               }
@@ -64,7 +64,7 @@ export default defineConfig(({mode}) => {
                   statuses: [0, 200]
                 },
                 expiration: {
-                  maxEntries: 700,
+                  maxEntries: 1000,
                   maxAgeSeconds: 60 * 60 * 24 * 365
                 }
               }
@@ -92,7 +92,7 @@ export default defineConfig(({mode}) => {
                   statuses: [0, 200, 206]
                 },
                 expiration: {
-                  maxEntries: 2000,
+                  maxEntries: 7500,
                   maxAgeSeconds: 60 * 60 * 24 * 365
                 }
               }

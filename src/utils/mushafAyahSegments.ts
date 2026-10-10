@@ -238,13 +238,9 @@ export function filterSegmentsForTask(
     });
   }
 
-  if (Array.isArray(activeRanges) && activeRanges.length === 0) {
+  if (!activeRanges || activeRanges.length === 0) {
+    // When no activeRanges provided, NO ayahs should be highlighted
     return [];
-  }
-
-  if (!activeRanges) {
-    // If undefined / not provided, fallback to all segments
-    return segments;
   }
 
   // Normalize verse ranges with surah numbers

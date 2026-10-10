@@ -116,6 +116,7 @@ interface QuranPageCardProps {
   boxWidth: number;
   boxHeight: number;
   isFreeReading?: boolean;
+  isWholeQuran?: boolean;
   taskTitle: string;
   activeSubsets: VerseRange[];
   selectedRange: {
@@ -139,6 +140,7 @@ const QuranPageCard: React.FC<QuranPageCardProps> = ({
   boxWidth,
   boxHeight,
   isFreeReading,
+  isWholeQuran,
   taskTitle,
   activeSubsets,
   selectedRange,
@@ -223,20 +225,33 @@ const QuranPageCard: React.FC<QuranPageCardProps> = ({
     return getAyahSegmentsForPage(pageNumber, quranWords || undefined);
   }, [pageNumber, quranWords]);
 
-  // If isFreeReading or full Quran or no active subsets, task highlighting is COMPLETELY DISABLED
+  // If isFreeReading, full Quran, browsing, or no active subsets, task highlighting is COMPLETELY DISABLED
   const matchedTaskSegments = useMemo(() => {
-    if (isFreeReading || taskTitle === 'المصحف كاملاً' || !activeSubsets || activeSubsets.length === 0) {
+    const isBrowsingQuran = isFreeReading || 
+      isWholeQuran ||
+      !taskTitle ||
+      taskTitle === 'المصحف كاملاً' || 
+      taskTitle.includes('المصحف') || 
+      taskTitle.includes('كامل') || 
+      taskTitle.startsWith('سورة ') || 
+      taskTitle.startsWith('الجزء ') || 
+      taskTitle.startsWith('الحزب ') || 
+      taskTitle.includes('استماع') || 
+      taskTitle.includes('تصفح') ||
+      taskTitle.includes('قراءة');
+
+    if (isBrowsingQuran || !activeSubsets || activeSubsets.length === 0) {
       return [];
     }
     return filterSegmentsForTask(pageSegments, activeSubsets, pageNumber);
-  }, [pageSegments, activeSubsets, pageNumber, isFreeReading, taskTitle]);
+  }, [pageSegments, activeSubsets, pageNumber, isFreeReading, isWholeQuran, taskTitle]);
 
   const highlightRects = useMemo(() => {
-    if (isFreeReading || taskTitle === 'المصحف كاملاً' || matchedTaskSegments.length === 0) {
+    if (matchedTaskSegments.length === 0) {
       return [];
     }
     return computeLineHighlightRects(matchedTaskSegments, pageNumber);
-  }, [matchedTaskSegments, pageNumber, isFreeReading, taskTitle]);
+  }, [matchedTaskSegments, pageNumber]);
 
   const selectedSegments = useMemo(() => {
     if (!selectedRange) return [];
@@ -494,9 +509,31 @@ export function QuranViewer({
     });
   }, [currentPage]);
 
+  const isWholeQuran = useMemo(() => {
+    return !!(
+      isFreeReading || 
+      (effectivePages && effectivePages.length >= 500) ||
+      taskTitle === 'المصحف كاملاً' || 
+      taskTitle.includes('المصحف') || 
+      taskTitle.includes('كامل')
+    );
+  }, [isFreeReading, effectivePages, taskTitle]);
+
   // Compute Active Verse Subsets for current page (clean unhighlighted if isFreeReading or taskTitle is full quran)
   const activeSubsets: VerseRange[] = useMemo(() => {
-    if (isFreeReading || taskTitle === 'المصحف كاملاً') return [];
+    const isBrowsingQuran = isWholeQuran || 
+      isFreeReading || 
+      !taskTitle ||
+      taskTitle === 'المصحف كاملاً' || 
+      taskTitle.includes('المصحف') || 
+      taskTitle.includes('كامل') || 
+      taskTitle.startsWith('سورة ') || 
+      taskTitle.startsWith('الجزء ') || 
+      taskTitle.startsWith('الحزب ') || 
+      taskTitle.includes('استماع') || 
+      taskTitle.includes('تصفح') ||
+      taskTitle.includes('قراءة');
+    if (isBrowsingQuran) return [];
     if (!currentPage) return [];
 
     if (verseRanges && verseRanges.length > 0) {
@@ -845,6 +882,8 @@ export function QuranViewer({
 
   // Page Swiping gesture & Navigation
   const [swipeDirection, setSwipeDirection] = useState(0);
+  const [dragOffset, setDragOffset] = useState<number>(0);
+  const [isDragging, setIsDragging] = useState<boolean>(false);
   const lastNavTimeRef = useRef<number>(0);
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const mouseStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
@@ -852,7 +891,7 @@ export function QuranViewer({
 
   const goToNextPage = useCallback(() => {
     const now = Date.now();
-    if (now - lastNavTimeRef.current < 260) return;
+    if (now - lastNavTimeRef.current < 250) return;
     lastNavTimeRef.current = now;
     if (effectivePageIndex < effectivePages.length - 1) {
       setSwipeDirection(1);
@@ -862,7 +901,7 @@ export function QuranViewer({
 
   const goToPrevPage = useCallback(() => {
     const now = Date.now();
-    if (now - lastNavTimeRef.current < 260) return;
+    if (now - lastNavTimeRef.current < 250) return;
     lastNavTimeRef.current = now;
     if (effectivePageIndex > 0) {
       setSwipeDirection(-1);
@@ -871,8 +910,8 @@ export function QuranViewer({
   }, [effectivePageIndex]);
 
   // Gestures for Touch Screens (Mobile):
-  // 1. السحب بالأصبع من اليسار إلى اليمين (deltaX > 0) -> تظهر الصفحة التالية
-  // 2. التمرير باللمس من اليمين إلى اليسار (deltaX < 0) -> تظهر الصفحة السابقة
+  // السحب نحو اليسار (deltaX < 0) -> الانتقال للصفحة التالية (تصفح مصحف عربي من اليمين لليسار)
+  // السحب نحو اليمين (deltaX > 0) -> الرجوع للصفحة السابقة
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 1) {
       touchStartRef.current = {
@@ -881,6 +920,8 @@ export function QuranViewer({
         time: Date.now()
       };
       isSwipingRef.current = false;
+      setIsDragging(false);
+      setDragOffset(0);
     }
   };
 
@@ -888,15 +929,26 @@ export function QuranViewer({
     if (!touchStartRef.current || e.touches.length !== 1) return;
     const currentX = e.touches[0].clientX;
     const currentY = e.touches[0].clientY;
-    const dist = Math.hypot(currentX - touchStartRef.current.x, currentY - touchStartRef.current.y);
-    if (dist > 12) {
+    const deltaX = currentX - touchStartRef.current.x;
+    const deltaY = currentY - touchStartRef.current.y;
+    const dist = Math.hypot(deltaX, deltaY);
+
+    if (dist > 8 && Math.abs(deltaX) > Math.abs(deltaY) * 0.8) {
       isSwipingRef.current = true;
+      setIsDragging(true);
+      // Interactive translation bounded to 160px for natural spring feel
+      const maxOffset = 160;
+      const clampedOffset = Math.max(-maxOffset, Math.min(maxOffset, deltaX));
+      setDragOffset(clampedOffset);
       cancelLongPress();
     }
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
     cancelLongPress();
+    setIsDragging(false);
+    setDragOffset(0);
+
     if (!touchStartRef.current || e.changedTouches.length === 0) return;
     const start = touchStartRef.current;
     const endX = e.changedTouches[0].clientX;
@@ -911,13 +963,17 @@ export function QuranViewer({
       return;
     }
 
-    if (Math.abs(deltaX) > 35 && Math.abs(deltaX) > Math.abs(deltaY) * 1.1 && deltaTime < 750) {
-      // السحب من اليسار إلى اليمين (deltaX > 0) -> الصفحة التالية
-      if (deltaX > 0) {
+    // Threshold of 35px or quick flick (< 400ms with 25px)
+    const isQuickFlick = deltaTime < 400 && Math.abs(deltaX) > 25;
+    const isStandardSwipe = Math.abs(deltaX) > 35 && deltaTime < 750;
+
+    if ((isStandardSwipe || isQuickFlick) && Math.abs(deltaX) > Math.abs(deltaY) * 0.8) {
+      // السحب لليسار: الانتقال للصفحة التالية في المصحف الشريف
+      if (deltaX < 0) {
         goToNextPage();
       }
-      // التمرير من اليمين إلى اليسار (deltaX < 0) -> الصفحة السابقة
-      else if (deltaX < 0) {
+      // السحب لليمين: العودة للصفحة السابقة
+      else if (deltaX > 0) {
         goToPrevPage();
       }
     }
@@ -932,19 +988,30 @@ export function QuranViewer({
       time: Date.now()
     };
     isSwipingRef.current = false;
+    setIsDragging(false);
+    setDragOffset(0);
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!mouseStartRef.current) return;
-    const dist = Math.hypot(e.clientX - mouseStartRef.current.x, e.clientY - mouseStartRef.current.y);
-    if (dist > 12) {
+    const deltaX = e.clientX - mouseStartRef.current.x;
+    const deltaY = e.clientY - mouseStartRef.current.y;
+    const dist = Math.hypot(deltaX, deltaY);
+
+    if (dist > 10 && Math.abs(deltaX) > Math.abs(deltaY) * 0.8) {
       isSwipingRef.current = true;
+      setIsDragging(true);
+      const maxOffset = 160;
+      setDragOffset(Math.max(-maxOffset, Math.min(maxOffset, deltaX)));
       cancelLongPress();
     }
   };
 
   const handleMouseUp = (e: React.MouseEvent) => {
     cancelLongPress();
+    setIsDragging(false);
+    setDragOffset(0);
+
     if (!mouseStartRef.current) return;
     const start = mouseStartRef.current;
     const deltaX = e.clientX - start.x;
@@ -957,10 +1024,10 @@ export function QuranViewer({
       return;
     }
 
-    if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY) * 1.1 && deltaTime < 700) {
-      if (deltaX > 0) {
+    if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY) * 0.8 && deltaTime < 700) {
+      if (deltaX < 0) {
         goToNextPage();
-      } else if (deltaX < 0) {
+      } else if (deltaX > 0) {
         goToPrevPage();
       }
     }
@@ -971,9 +1038,9 @@ export function QuranViewer({
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) return;
-      if (e.key === 'ArrowRight') {
+      if (e.key === 'ArrowLeft') {
         goToNextPage();
-      } else if (e.key === 'ArrowLeft') {
+      } else if (e.key === 'ArrowRight') {
         goToPrevPage();
       }
     };
@@ -983,7 +1050,7 @@ export function QuranViewer({
 
   const pageVariants = {
     enter: (direction: number) => ({
-      x: direction > 0 ? -160 : 160,
+      x: direction > 0 ? -90 : 90,
       opacity: 0,
       scale: 0.98
     }),
@@ -993,7 +1060,7 @@ export function QuranViewer({
       scale: 1
     },
     exit: (direction: number) => ({
-      x: direction > 0 ? 160 : -160,
+      x: direction > 0 ? 90 : -90,
       opacity: 0,
       scale: 0.98
     })
@@ -1033,7 +1100,7 @@ export function QuranViewer({
       {/* Reading Viewport */}
       <div
         ref={measurementRef}
-        onClick={() => {
+        onClick={(e) => {
           if (wasLongPressTriggeredRef.current) {
             wasLongPressTriggeredRef.current = false;
             return;
@@ -1042,6 +1109,19 @@ export function QuranViewer({
             isSwipingRef.current = false;
             return;
           }
+          const clickX = e.clientX;
+          const windowW = window.innerWidth;
+          // Left 18% of screen -> Next page
+          if (clickX < windowW * 0.18) {
+            goToNextPage();
+            return;
+          }
+          // Right 18% of screen -> Previous page
+          if (clickX > windowW * 0.82) {
+            goToPrevPage();
+            return;
+          }
+          // Center -> Toggle Controls
           setAreControlsVisible(prev => !prev);
         }}
         onTouchStart={handleTouchStart}
@@ -1050,9 +1130,9 @@ export function QuranViewer({
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
-        className="absolute inset-0 overflow-hidden flex flex-col items-center justify-center select-none cursor-pointer touch-pan-y"
+        className="absolute inset-0 overflow-hidden flex flex-col items-center justify-center select-none cursor-pointer touch-none overscroll-none"
       >
-        <AnimatePresence initial={false} custom={swipeDirection} mode="popLayout">
+        <AnimatePresence initial={false} custom={swipeDirection}>
           <motion.div
             key={effectivePageIndex}
             ref={scrollContainerRef}
@@ -1061,18 +1141,22 @@ export function QuranViewer({
             initial="enter"
             animate="center"
             exit="exit"
+            style={{
+              x: dragOffset
+            }}
             transition={{
-              x: { type: 'spring', stiffness: 320, damping: 32, mass: 0.8 },
-              opacity: { duration: 0.22 },
-              scale: { duration: 0.22 }
+              x: { duration: 0.22, ease: [0.25, 1, 0.5, 1] },
+              opacity: { duration: 0.18 },
+              scale: { duration: 0.18 }
             }}
             className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden"
           >
             <QuranPageCard
-              pageNumber={currentPage}
+              pageNumber={effectivePages[effectivePageIndex] || currentPage}
               boxWidth={boxWidth}
               boxHeight={boxHeight}
               isFreeReading={isFreeReading}
+              isWholeQuran={isWholeQuran}
               taskTitle={taskTitle}
               activeSubsets={activeSubsets}
               selectedRange={selectedRange}

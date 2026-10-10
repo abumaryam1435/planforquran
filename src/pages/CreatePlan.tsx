@@ -35,7 +35,7 @@ import { SURAH_METADATAList } from "../utils/quranPageMapping";
 
 export interface PresetPlanInfo {
   id: string;
-  category: "khatmah" | "deep_fixation";
+  category: "world_traditions" | "khatmah" | "deep_fixation";
   title: string;
   badge: string;
   shortDesc: string;
@@ -48,18 +48,86 @@ export interface PresetPlanInfo {
 }
 
 export const PRESET_PLANS: PresetPlanInfo[] = [
+  // 1. المناهج والطرائق العالمية المعتمدة في العالم الإسلامي
   {
     id: "fami_bi_shawq",
-    category: "khatmah",
+    category: "world_traditions",
     title: "خطة «فَمِي بِشَوْقٍ» المأثورة",
-    badge: "ختم كل 7 أيام",
+    badge: "ختم كل 7 أيام (سُنّة الصحابة)",
     shortDesc: "تحزيب الصحابة المأثور (3، 5، 7، 9، 11، 13، والمفصل) لختم القرآن أسبوعياً.",
     fullDesc: "خطة مأثورة عن الصحابة رضوان الله عليهم: يقسم القرآن إلى ٧ أقسام تبدأ بحروف (ف، م، ي، ب، ش، و، ق). يُقرأ كل قسيم مرة واحدة يومياً لختم القرآن كاملاً كل أسبوع في دورة مستمرة بدون تكرار يومي.",
-    dailyPace: "قسيم واحد (حوالي 85 صفحة) بدون تكرار",
-    repetitionText: "مرة واحدة لكل قسيم بدون تكرار يومي",
-    cycleText: "٧ أيام تتجدد دورياً",
+    dailyPace: "قسيم واحد (حوالي 85 صفحة) يومياً",
+    repetitionText: "قراءة سردية مرة واحدة لكل قسيم بدون تكرار",
+    cycleText: "٧ أيام تتجدد دورياً (ختمة كل أسبوع)",
     color: "emerald",
-    tag: "مأثورة عن الصحابة",
+    tag: "مأثورة عن الصحابة رضوان الله عليهم",
+  },
+  {
+    id: "shinqiti_fiftieth",
+    category: "world_traditions",
+    title: "طريقة الشناقطة (الطريقة الخمسينية المباركة)",
+    badge: "50 تكراراً دبر الصلوات الخمس",
+    shortDesc: "المنهج الشنقيطي الموريتاني الراسخ: تكرار صفحة واحدة 10 مرات دبر كل صلاة مكتوبة لتثبيتها كالفاتحة.",
+    fullDesc: "المنهج الشنقيطي التاريخي المشهور في موريتانيا وغرب إفريقيا لإتقان الحفظ: يعتمد على تخصيص صفحة واحدة وتكرارها ١٠ مرات دبر كل صلاة من الصلوات الخمس المكتوبة (١٠ بعد الفجر، ١٠ بعد الظهر، ١٠ بعد العصر، ١٠ بعد المغرب، ١٠ بعد العشاء = ٥٠ تكراراً يومياً)، مع جلسة تسميع غيباً قبل النوم وعند الاستيقاظ. يثمر حفظاً راسخاً لا يتزعزع.",
+    dailyPace: "صفحة واحدة يومياً (مكررة ٥٠ مرة)",
+    repetitionText: "٥٠ تكراراً (١٠ مرات دبر كل صلاة مكتوبة)",
+    cycleText: "تثبيت تراكمي يومي راسخ كالفاتحة",
+    color: "amber",
+    tag: "تراث المحاظر الموريتانية الشهيرة",
+  },
+  {
+    id: "moroccan_hizb_ratib",
+    category: "world_traditions",
+    title: "منهج الحزب الراتب المغربي (راتب الصباح والمساء)",
+    badge: "حزبان / يوم (ختمة شهرية مستمرة)",
+    shortDesc: "السنة المغربية الأندلسية العريقة المستمرة منذ القرن السادس الهجري: حزب بعد الفجر وحزب بعد المغرب.",
+    fullDesc: "المنهج التقليدي الراسخ في مساجد وزوايا المغرب والجزائر والأندلس منذ عهد الموحدين: قراءة حزب كامل (نصف جزء - ١٠ صفحات) دبر صلاة الصبح (راتب الصباح)، وحزب كامل دبر صلاة المغرب (راتب المساء). يختم الحافظ القرآن كاملاً كل شهر بسلاسة وبركة وهدوء دون انقطاع طوال حياته.",
+    dailyPace: "حزبان (جزء كامل = ٢٠ صفحة) يومياً",
+    repetitionText: "قراءة راتبة مرتين يومياً (صباحاً ومساءً)",
+    cycleText: "٣٠ يوماً لكل ختمة (ختمة شهرية مستمرة مدى الحياة)",
+    color: "emerald",
+    tag: "التقليد المغربي الأندلسي العريق",
+  },
+  {
+    id: "ottoman_system",
+    category: "world_traditions",
+    title: "الطريقة التركية العثمانية (نظام القوس والتراكم)",
+    badge: "سرد 50 صفحة / يوم (ختم كل 12 يوماً)",
+    shortDesc: "منهج الحلقات القرآنية العثمانية في تركيا والبلقان: مراجعة القرآن بحزم متقاطعة تربط أطراف المصحف.",
+    fullDesc: "المنهج التاريخي المعمول به في المدارس القرآنية بتركيا وإسطنبول والبلقان: يقوم على تقسيم المصحف إلى مسارات أفقية متقاطعة تربط أوائل وأواخر الأجزاء ومواقع المتشابهات. مراجعة جزأين ونصف (٥٠ صفحة) يومياً لسرد المصحف كاملاً كل ١٢ يوماً (ختمتان ونصف شهرياً)، ليصبح الحافظ مستحضراً لأماكن الصفحات وتسلسلها كشريط مرئي.",
+    dailyPace: "جزأين ونصف (٥٠ صفحة) يومياً",
+    repetitionText: "سرد متقن مع تدقيق المتشابهات وأطراف الصفحات",
+    cycleText: "١٢ يوماً لكل ختمة كاملة (ختمتان ونصف/شهر)",
+    color: "teal",
+    tag: "المدارس العثمانية الكلاسيكية",
+  },
+  {
+    id: "king_fahd_majlis",
+    category: "world_traditions",
+    title: "طريقة مجمع الملك فهد والجمعيات (القريب والبعيد)",
+    badge: "حزب قريب مكرر 3x + جزأين بعيد",
+    shortDesc: "المنهج المعتمد في جمعيات تحفيظ القرآن بالمملكة ومراكز الإقراء: مسار مراجعة القريب مع مسار سرد البعيد.",
+    fullDesc: "المنهج النموذجي الأكثر نجاحاً في حلقات تحفيظ القرآن بالمملكة ومجمع الملك فهد: يجمع بين مسارين يوميين متوازيين: مسار مراجعة القريب (حزب واحد مكرر ٣ مرات لتمكين الحفظ الحديث وربطه)، ومسار مراجعة البعيد (سرد جزأين كاملين يومياً من الحفظ القديم لربط أجزاء المصحف وختمه كل ١٥ يوماً).",
+    dailyPace: "جزأين سرد عام + حزب واحد تثبيت مكثف",
+    repetitionText: "سرد 1x للمحفوظ البعيد + تكرار 3x للقريب",
+    cycleText: "ختمة دورية كل ١٥ يوماً مع تثبيت مستمر",
+    color: "blue",
+    tag: "منهج الحلقات النموذجية المعتمد",
+  },
+
+  // 2. خطط الختم والمراجعة الدورية
+  {
+    id: "khatm_6_days",
+    category: "khatmah",
+    title: "خطة كبار الحفاظ (ختم كل 6 أيام)",
+    badge: "5 أجزاء / يوم (ختم في 6 أيام)",
+    shortDesc: "خطة أصحاب الهمم العالية وطلاب الإجازة: 5 أجزاء يومياً لختم المصحف 5 مرات شهرياً.",
+    fullDesc: "خطة كبار المتقنين والمجازين بالأسانيد القرآنية: مراجعة ٥ أجزاء (١٠٠ صفحة) يومياً لختم القرآن كاملاً كل ٦ أيام (٥ ختمات كل شهر)، ليصبح القرآن غضاً طرياً جارياً على اللسان كالفاتحة.",
+    dailyPace: "٥ أجزاء (١٠٠ صفحة) يومياً",
+    repetitionText: "سرد متقن مرة واحدة يومياً",
+    cycleText: "٦ أيام لكل ختمة كاملة (5 ختمات/شهر)",
+    color: "amber",
+    tag: "همم عالية وإتقان فائق للمجازين",
   },
   {
     id: "khatm_10_days",
@@ -72,20 +140,20 @@ export const PRESET_PLANS: PresetPlanInfo[] = [
     repetitionText: "سرد متقن مرة واحدة يومياً",
     cycleText: "١٠ أيام تتجدد دورياً (3 ختمات/شهر)",
     color: "blue",
-    tag: "الخطة الذهبية للحفاظ",
+    tag: "الخطة الذهبية لجمهور الحفاظ",
   },
   {
-    id: "khatm_6_days",
+    id: "khatm_14_days",
     category: "khatmah",
-    title: "خطة كبار الحفاظ (ختم كل 6 أيام)",
-    badge: "5 أجزاء / يوم (ختم في 6 أيام)",
-    shortDesc: "خطة أصحاب الهمم العالية وطلاب الإجازة: 5 أجزاء يومياً لختم المصحف 5 مرات شهرياً.",
-    fullDesc: "خطة كبار المتقنين والمجازين بالأسانيد القرآنية: مراجعة ٥ أجزاء (١٠٠ صفحة) يومياً لختم القرآن كاملاً كل ٦ أيام (٥ ختمات كل شهر)، ليصبح القرآن غضاً طرياً جارياً على اللسان كالفاتحة.",
-    dailyPace: "٥ أجزاء (١٠٠ صفحة) يومياً",
+    title: "خطة الختمة نصف الشهرية الدقيقة (كل 14 يوماً)",
+    badge: "43 صفحة / يوم (ختم كل أسبوعين)",
+    shortDesc: "ختم القرآن مرتين شهرياً بالضبط بمعدل 43 صفحة (جزأين وحزب) كل يوم.",
+    fullDesc: "خطة ميزانية دقيقة للمتقنين: قراءة ٤٣ صفحة (جزأين وحزب كامل) كل يوم لإنهاء الختمة كل أسبوعين بالتحديد (ختمتان كاملتان كل ٢٨ يوماً). تمتاز بانتظامها الزمني الدقيق مع أسابيع الشهر.",
+    dailyPace: "٤٣ صفحة (جزأين وحزب) يومياً",
     repetitionText: "سرد متقن مرة واحدة يومياً",
-    cycleText: "٦ أيام لكل ختمة كاملة (5 ختمات/شهر)",
-    color: "amber",
-    tag: "همم عالية وإتقان فائق",
+    cycleText: "١٤ يوماً لكل ختمة (ختمة كل أسبوعين)",
+    color: "purple",
+    tag: "دورة منتظمة كل أسبوعين",
   },
   {
     id: "khatm_15_days",
@@ -114,6 +182,21 @@ export const PRESET_PLANS: PresetPlanInfo[] = [
     tag: "الورد اليومي الدائم",
   },
   {
+    id: "khatm_40_days",
+    category: "khatmah",
+    title: "خطة الختمة الهادئة المتأنية (كل 40 يوماً)",
+    badge: "15 صفحة / يوم (ختم كل 40 يوماً)",
+    shortDesc: "الخطة الموصى بها للموظفين والشاغلين: 15 صفحة (3 أرباع الحزب) يومياً بتؤدة وترتيل.",
+    fullDesc: "خطة مأثورة مستوحاة من هدي النبي ﷺ وأصحابه بختم القرآن في أربعين يوماً لمن انشغل بأعباء الحياة والعمل: مراجعة ١٥ صفحة (ثلاثة أرباع الحزب) يومياً بقراءة متأنية وتدبر، تضمن إتمام أكثر من ٩ ختمات سنوياً دون مشقة أو انقطاع، وهي أفضل خطة للاستدامة مدى الحياة.",
+    dailyPace: "١٥ صفحة (٣ أرباع الحزب) يومياً",
+    repetitionText: "قراءة متأنية مع تدبر مرة واحدة يومياً",
+    cycleText: "٤٠ يوماً لكل ختمة (9 ختمات مباركة سنوياً)",
+    color: "indigo",
+    tag: "استدامة وهدوء لأصحاب الأعمال",
+  },
+
+  // 3. خطط التثبيت العميق والإتقان
+  {
     id: "deep_hizb_5x",
     category: "deep_fixation",
     title: "خطة الحصون الخمسة للتثبيت العميق",
@@ -124,7 +207,7 @@ export const PRESET_PLANS: PresetPlanInfo[] = [
     repetitionText: "٥ تكرارات مركزة للورد اليومي",
     cycleText: "٦٠ يوماً لتثبيت المصحف كاملاً",
     color: "purple",
-    tag: "علاج الحفظ المهتز",
+    tag: "علاج الحفظ المهتز والتردد",
   },
   {
     id: "deep_two_quarters_4x",
@@ -163,7 +246,7 @@ export const PRESET_PLANS: PresetPlanInfo[] = [
     repetitionText: "٣ تكرارات يومياً",
     cycleText: "٦ أيام لكل دورة تثبيت (تتكرر دورياً)",
     color: "amber",
-    tag: "لأئمة المساجد والمصلين",
+    tag: "لأئمة المساجد والمصلين والمحاريب",
   },
 ];
 
@@ -246,7 +329,9 @@ export default function CreatePlan() {
   const [includeListening, setIncludeListening] = useState<boolean>(false);
   const [reviewTab, setReviewTab] = useState<"custom" | "presets">("custom");
   const [selectedPresetId, setSelectedPresetId] = useState<string>("fami_bi_shawq");
-  const [presetCategory, setPresetCategory] = useState<"all" | "khatmah" | "deep_fixation">("all");
+  const [presetCategory, setPresetCategory] = useState<
+    "all" | "world_traditions" | "khatmah" | "deep_fixation"
+  >("all");
   const [presetStartJuz, setPresetStartJuz] = useState<number>(1);
   const [presetRepetitions, setPresetRepetitions] = useState<number>(5);
   const [reviewPlanMode, setReviewPlanMode] = useState<"custom" | "fami_bi_shawq">("custom");
@@ -1057,17 +1142,35 @@ export default function CreatePlan() {
         if (selectedPresetId === "fami_bi_shawq") {
           return "٧ أيام لكل دورة ختمة كاملة (تتجدد وتستمر أسبوعياً تلقائياً)";
         }
-        if (selectedPresetId === "khatm_10_days") {
-          return "١٠ أيام لكل ختمة كاملة (٣ أجزاء يومياً - ٣ ختمات شهرياً)";
+        if (selectedPresetId === "shinqiti_fiftieth") {
+          return "صفحة واحدة يومياً مكررة ٥٠ مرة (١٠ دبر كل صلاة مكتوبة) لرسوخ كالفاتحة";
+        }
+        if (selectedPresetId === "moroccan_hizb_ratib") {
+          return "٣٠ يوماً لكل ختمة كاملة (حزب بعد الفجر + حزب بعد المغرب - ختمة شهرية مستمرة)";
+        }
+        if (selectedPresetId === "ottoman_system") {
+          return "١٢ يوماً لكل ختمة كاملة (٥٠ صفحة / جزأين ونصف يومياً بنظام القوس والتراكم)";
+        }
+        if (selectedPresetId === "king_fahd_majlis") {
+          return "١٥ يوماً لسرد المحفوظ القديم (جزأين يومياً) + حزب قريب مكرر ٣ مرات للتثبيت";
         }
         if (selectedPresetId === "khatm_6_days") {
           return "٦ أيام لكل ختمة كاملة (٥ أجزاء يومياً - ٥ ختمات شهرياً)";
+        }
+        if (selectedPresetId === "khatm_10_days") {
+          return "١٠ أيام لكل ختمة كاملة (٣ أجزاء يومياً - ٣ ختمات شهرياً)";
+        }
+        if (selectedPresetId === "khatm_14_days") {
+          return "١٤ يوماً لكل ختمة كاملة (٤٣ صفحة يومياً - ختمتان دقيقتان شهرياً)";
         }
         if (selectedPresetId === "khatm_15_days") {
           return "١٥ يوماً لكل ختمة (جزأين يومياً - ختمتان شهرياً)";
         }
         if (selectedPresetId === "khatm_30_days") {
-          return "٣٠ يوماً لكل ختمة كاملة (جزء واحد يومياً)";
+          return "٣٠ يوماً لكل ختمة كاملة (جزء واحد يومياً - ختمة شهرية دائمة)";
+        }
+        if (selectedPresetId === "khatm_40_days") {
+          return "٤٠ يوماً لكل ختمة كاملة (١٥ صفحة يومياً بتؤدة وهدوء للمشغولين - ٩ ختمات سنوياً)";
         }
         if (selectedPresetId === "deep_hizb_5x") {
           return "٦٠ يوماً لدورة التثبيت العميق للمصحف (حزب يومياً مكرر ٥ مرات)";
@@ -1687,6 +1790,142 @@ export default function CreatePlan() {
             fixationRepetitions: presetRepetitions || 3,
             fixationRepetitionMode: "entire_portion",
             dailyAmount: DailyAmount.ONE_PAGE,
+            includeRecitation: false,
+            includeListening: false,
+            firstDayOfWeek,
+            startDate: new Date(startDate).toISOString(),
+          };
+        } else if (selectedPresetId === "shinqiti_fiftieth") {
+          planData = {
+            ...sharedData,
+            planType: "review",
+            presetPlanId: "shinqiti_fiftieth",
+            presetName: "طريقة الشناقطة (الطريقة الخمسينية المباركة)",
+            continuousReview: true,
+            isSpecificReview: false,
+            reviewRangeMode: "full",
+            reviewAmountType: "pages",
+            reviewPageAmount: 1,
+            startJuz: Number(presetStartJuz || 1),
+            startPage: 1,
+            endPage: 604,
+            dailyAmount: DailyAmount.ONE_PAGE,
+            includeFixation: true,
+            fixationRangeMode: "full",
+            fixationAmountType: "page",
+            fixationRepetitions: presetRepetitions || 50,
+            fixationRepetitionMode: "entire_portion",
+            fixationStartJuz: Number(presetStartJuz || 1),
+            includeRecitation: false,
+            includeListening: false,
+            firstDayOfWeek,
+            startDate: new Date(startDate).toISOString(),
+          };
+        } else if (selectedPresetId === "moroccan_hizb_ratib") {
+          planData = {
+            ...sharedData,
+            planType: "review",
+            presetPlanId: "moroccan_hizb_ratib",
+            presetName: "منهج الحزب الراتب المغربي (راتب الصباح والمساء)",
+            continuousReview: true,
+            isSpecificReview: false,
+            reviewRangeMode: "full",
+            reviewAmountType: "juz",
+            reviewJuzAmount: 1,
+            startJuz: Number(presetStartJuz || 1),
+            startPage: 1,
+            endPage: 604,
+            dailyAmount: DailyAmount.ONE_PAGE,
+            includeFixation: false,
+            includeRecitation: false,
+            includeListening: false,
+            firstDayOfWeek,
+            startDate: new Date(startDate).toISOString(),
+          };
+        } else if (selectedPresetId === "ottoman_system") {
+          planData = {
+            ...sharedData,
+            planType: "review",
+            presetPlanId: "ottoman_system",
+            presetName: "الطريقة التركية العثمانية (نظام القوس والتراكم)",
+            continuousReview: true,
+            isSpecificReview: false,
+            reviewRangeMode: "full",
+            reviewAmountType: "pages",
+            reviewPageAmount: 50,
+            startJuz: Number(presetStartJuz || 1),
+            startPage: 1,
+            endPage: 604,
+            dailyAmount: DailyAmount.ONE_PAGE,
+            includeFixation: false,
+            includeRecitation: false,
+            includeListening: false,
+            firstDayOfWeek,
+            startDate: new Date(startDate).toISOString(),
+          };
+        } else if (selectedPresetId === "king_fahd_majlis") {
+          planData = {
+            ...sharedData,
+            planType: "review",
+            presetPlanId: "king_fahd_majlis",
+            presetName: "طريقة مجمع الملك فهد والجمعيات (القريب والبعيد)",
+            continuousReview: true,
+            isSpecificReview: false,
+            reviewRangeMode: "full",
+            reviewAmountType: "juz",
+            reviewJuzAmount: 2,
+            startJuz: Number(presetStartJuz || 1),
+            includeFixation: true,
+            fixationRangeMode: "full",
+            fixationAmountType: "hizb",
+            fixationRepetitions: 3,
+            fixationRepetitionMode: "entire_portion",
+            fixationStartJuz: Number(presetStartJuz || 1),
+            startPage: 1,
+            endPage: 604,
+            dailyAmount: DailyAmount.ONE_PAGE,
+            includeRecitation: false,
+            includeListening: false,
+            firstDayOfWeek,
+            startDate: new Date(startDate).toISOString(),
+          };
+        } else if (selectedPresetId === "khatm_14_days") {
+          planData = {
+            ...sharedData,
+            planType: "review",
+            presetPlanId: "khatm_14_days",
+            presetName: "خطة الختمة نصف الشهرية الدقيقة (كل 14 يوماً)",
+            continuousReview: true,
+            isSpecificReview: false,
+            reviewRangeMode: "full",
+            reviewAmountType: "pages",
+            reviewPageAmount: 43,
+            startJuz: Number(presetStartJuz || 1),
+            startPage: 1,
+            endPage: 604,
+            dailyAmount: DailyAmount.ONE_PAGE,
+            includeFixation: false,
+            includeRecitation: false,
+            includeListening: false,
+            firstDayOfWeek,
+            startDate: new Date(startDate).toISOString(),
+          };
+        } else if (selectedPresetId === "khatm_40_days") {
+          planData = {
+            ...sharedData,
+            planType: "review",
+            presetPlanId: "khatm_40_days",
+            presetName: "خطة الختمة الهادئة المتأنية (كل 40 يوماً - 15 صفحة)",
+            continuousReview: true,
+            isSpecificReview: false,
+            reviewRangeMode: "full",
+            reviewAmountType: "pages",
+            reviewPageAmount: 15,
+            startJuz: Number(presetStartJuz || 1),
+            startPage: 1,
+            endPage: 604,
+            dailyAmount: DailyAmount.ONE_PAGE,
+            includeFixation: false,
             includeRecitation: false,
             includeListening: false,
             firstDayOfWeek,
