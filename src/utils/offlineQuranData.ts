@@ -128,3 +128,16 @@ export async function getAyahsForPageOffline(page: number): Promise<{
     };
   });
 }
+
+export async function getVersesRangeText(surah: number, startAyah: number, endAyah: number): Promise<string> {
+  const allData = await getOfflineQuranData();
+  const verses = allData
+    .filter(item => {
+      const sNum = getSurahNumberFromName(item.s);
+      return sNum === surah && item.n >= startAyah && item.n <= endAyah;
+    })
+    .sort((a, b) => a.n - b.n);
+
+  if (verses.length === 0) return '';
+  return verses.map(v => `${v.u || v.t} ﴿${v.n}﴾`).join(' ');
+}

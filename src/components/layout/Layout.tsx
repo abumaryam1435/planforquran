@@ -7,6 +7,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { useAuth } from '../../context/AuthProvider';
 import { globalDownloadState, subscribeToDownload, DownloadProgress } from '../../utils/offlineCache';
+import { PWAInstallButton } from '../ui/PWAInstallButton';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -51,6 +52,9 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="flex items-center gap-2">
            <img src="/app_icon_v6.png" alt="App Logo" className="w-8 h-8 rounded-lg bg-white shadow-sm" />
            <h1 className="text-xl font-bold tracking-tight text-[#1A2E1A] dark:text-white">خطة الحفظ</h1>
+           <div className="hidden sm:block mr-2">
+             <PWAInstallButton />
+           </div>
         </div>
         <div className="flex items-center gap-2">
           {user || isGuest ? (

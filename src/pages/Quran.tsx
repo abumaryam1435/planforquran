@@ -1,18 +1,36 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BookOpen, Search, Play, Volume2, Settings, ChevronLeft, Filter, BookOpenCheck, Headphones, Plus, Trash2 } from 'lucide-react';
+import {
+  BookOpen,
+  Search,
+  Play,
+  Volume2,
+  Settings,
+  ChevronLeft,
+  Filter,
+  BookOpenCheck,
+  Headphones,
+  Plus,
+  Trash2,
+  Download,
+  Wifi,
+  WifiOff
+} from 'lucide-react';
 import { SURAH_METADATAList } from '../utils/quranPageMapping';
 import { QURAN_QUARTERS } from '../utils/quranQuarters';
 import { QuranViewer } from '../components/ui/QuranViewer';
 import { useAudio } from '../context/AudioContext';
 import { SearchableSurahSelect } from '../components/ui/SearchableSurahSelect';
 import { SearchableNumberSelect } from '../components/ui/SearchableNumberSelect';
+import { PWAInstallButton } from '../components/ui/PWAInstallButton';
+import { OfflineDownloadModal } from '../components/ui/OfflineDownloadModal';
 
 type TabType = 'read' | 'listen' | 'search';
 type ReadFilterType = 'full' | 'surah' | 'juz' | 'hizb';
 
 export default function Quran() {
   const [activeTab, setActiveTab] = useState<TabType>('read');
+  const [downloadModalOpen, setDownloadModalOpen] = useState(false);
   const [readFilter, setReadFilter] = useState<ReadFilterType>('surah');
   
   const [viewerOpen, setViewerOpen] = useState(false);
@@ -247,11 +265,23 @@ export default function Quran() {
 
   return (
     <div className="space-y-6 pb-20">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold dark:text-white flex items-center gap-2">
           <BookOpen className="w-6 h-6 text-[#D4AF37]" />
           المصحف الشريف
         </h1>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <PWAInstallButton />
+          <button
+            onClick={() => setDownloadModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 dark:text-amber-300 font-bold text-xs border border-amber-500/30 shadow-sm active:scale-95 transition-all cursor-pointer font-sans"
+            title="تنزيل صفحات المصحف والصوتيات للعمل بدون إنترنت"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span>التحميل بدون إنترنت</span>
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -685,6 +715,7 @@ export default function Quran() {
         }}
         pages={viewerPages}
         taskTitle={viewerTitle}
+        isFreeReading={true}
         verseRanges={
            activeTab === 'listen' && customSequenceMode
              ? listenRanges.map(r => ({ surah: r.surah, start: r.start, end: r.end }))
@@ -693,6 +724,11 @@ export default function Quran() {
         customSequenceMode={customSequenceMode}
         ayahRepeat={ayahRepeat}
         sequenceRepeat={sequenceRepeat}
+      />
+
+      <OfflineDownloadModal
+        isOpen={downloadModalOpen}
+        onClose={() => setDownloadModalOpen(false)}
       />
     </div>
   );

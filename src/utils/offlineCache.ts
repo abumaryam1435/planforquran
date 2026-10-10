@@ -238,10 +238,11 @@ export async function getUncachedPages(checkAudio: boolean): Promise<number[]> {
  */
 export async function getPageImageSrc(page: number, fallbackStep: number = 0): Promise<string> {
   const pagePad = page.toString().padStart(3, '0');
-  let defaultUrl = `https://android.quran.com/data/width_1260/page${pagePad}.png`;
-  if (fallbackStep === 1) defaultUrl = `https://android.quran.com/data/width_1024/page${pagePad}.png`;
-  if (fallbackStep === 2) defaultUrl = `https://android.quran.com/data/width_512/page${pagePad}.png`;
-  return defaultUrl;
+  if (fallbackStep === 0) return `https://android.quran.com/data/width_1260/page${pagePad}.png`;
+  if (fallbackStep === 1) return `https://android.quran.com/data/width_1024/page${pagePad}.png`;
+  if (fallbackStep === 2) return `https://everyayah.com/data/quranpages_png/${pagePad}.png`;
+  if (fallbackStep === 3) return `https://static.quran.com/images/pages/page${pagePad}.png`;
+  return `https://files.quran.app/hafs/madani/width_1260/page${pagePad}.png`;
 }
 
 /**
@@ -353,15 +354,20 @@ export async function downloadPagesAndAudio(
         estimatedSecondsRemaining: estSecRemaining,
       });
 
-      // 1. Download Page Image (High Res)
+      // 1. Download Page Image (High Res 1260x2038)
       const pagePad = page.toString().padStart(3, '0');
-      const imageUrl = `https://android.quran.com/data/width_1260/page${pagePad}.png`;
-      const cachedImage = await imageCache.match(imageUrl);
+      const directUrl = `https://files.quran.app/hafs/madani/width_1260/page${pagePad}.png`;
+      const legacyUrl = `https://android.quran.com/data/width_1260/page${pagePad}.png`;
+      const cachedImage = (await imageCache.match(directUrl)) || (await imageCache.match(legacyUrl));
       if (!cachedImage) {
         try {
-          const imgRes = await fetch(imageUrl, { mode: 'no-cors', signal });
-          if (imgRes.type === 'opaque' || imgRes.ok) {
-            await imageCache.put(imageUrl, imgRes);
+          let imgRes = await fetch(directUrl, { signal });
+          if (!imgRes.ok) {
+            imgRes = await fetch(legacyUrl, { signal });
+          }
+          if (imgRes.ok) {
+            await imageCache.put(directUrl, imgRes.clone());
+            await imageCache.put(legacyUrl, imgRes);
           }
         } catch (err: any) {
           if (err.name === 'AbortError') throw err;

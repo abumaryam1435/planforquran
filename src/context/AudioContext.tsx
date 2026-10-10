@@ -162,12 +162,19 @@ export const AudioProvider: React.FC<{children: ReactNode}> = ({ children }) => 
 
     // Check if cached in browser
     let isAudioCached = false;
+    let audioBlobUrl: string | null = null;
     if ('caches' in window) {
       try {
         const audioCache = await caches.open('quran-audio-v1');
         const cachedRes = await audioCache.match(audioUrl);
         if (cachedRes) {
           isAudioCached = true;
+          try {
+            const blob = await cachedRes.blob();
+            if (blob && blob.size > 0) {
+              audioBlobUrl = URL.createObjectURL(blob);
+            }
+          } catch (err) {}
         }
       } catch (err) {}
     }
@@ -180,6 +187,18 @@ export const AudioProvider: React.FC<{children: ReactNode}> = ({ children }) => 
       setIsPlaying(false);
       setPlayingTaskId(null);
       return;
+    }
+
+    // Auto-cache audio in background when playing online
+    if (!isAudioCached && navigator.onLine) {
+      fetch(audioUrl)
+        .then(async (res) => {
+          if (res.ok) {
+            const cache = await caches.open('quran-audio-v1');
+            await cache.put(audioUrl, res);
+          }
+        })
+        .catch(() => {});
     }
 
     // Re-attach fallback error handler that might have been cleared
@@ -210,8 +229,9 @@ export const AudioProvider: React.FC<{children: ReactNode}> = ({ children }) => 
       }
     };
 
-    if (audio.src !== audioUrl) {
-      audio.src = audioUrl;
+    const effectiveSrc = audioBlobUrl || audioUrl;
+    if (audio.src !== effectiveSrc) {
+      audio.src = effectiveSrc;
       audio.load();
     }
     

@@ -28,13 +28,13 @@ export default defineConfig(({mode}) => {
           ignoreURLParametersMatching: [/.*/],
           runtimeCaching: [
             {
-              urlPattern: /quran-.*\.json/,
+              urlPattern: /quran-chunk-.*\.json/,
               handler: 'CacheFirst',
               options: {
                 cacheName: 'quran-chunks-cache-v4',
                 expiration: {
-                  maxEntries: 1,
-                  maxAgeSeconds: 60 * 60 * 24 * 30 // 30 Days
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 365
                 },
                 cacheableResponse: {
                   statuses: [0, 200]
@@ -42,12 +42,16 @@ export default defineConfig(({mode}) => {
               }
             },
             {
-              urlPattern: /^https:\/\/android\.quran\.com\/.*\.png$/,
+              urlPattern: /^https:\/\/(android\.quran\.com|files\.quran\.app|everyayah\.com|static\.quran\.com)\/.*\.png$/,
               handler: 'CacheFirst',
               options: {
                 cacheName: 'quran-images-v1',
                 cacheableResponse: {
                   statuses: [0, 200]
+                },
+                expiration: {
+                  maxEntries: 700,
+                  maxAgeSeconds: 60 * 60 * 24 * 365
                 }
               }
             },
@@ -58,6 +62,10 @@ export default defineConfig(({mode}) => {
                 cacheName: 'quran-pages-v1',
                 cacheableResponse: {
                   statuses: [0, 200]
+                },
+                expiration: {
+                  maxEntries: 700,
+                  maxAgeSeconds: 60 * 60 * 24 * 365
                 }
               }
             },
@@ -68,20 +76,32 @@ export default defineConfig(({mode}) => {
                 cacheName: 'quran-words-v1',
                 cacheableResponse: {
                   statuses: [0, 200]
+                },
+                expiration: {
+                  maxEntries: 700,
+                  maxAgeSeconds: 60 * 60 * 24 * 365
                 }
               }
             },
             {
-              urlPattern: /^https:\/\/everyayah\.com\/data\/.*/,
+              urlPattern: /^https:\/\/everyayah\.com\/data\/.*\.mp3$/,
               handler: 'CacheFirst',
               options: {
                 cacheName: 'quran-audio-v1',
                 cacheableResponse: {
-                  statuses: [0, 200]
+                  statuses: [0, 200, 206]
+                },
+                expiration: {
+                  maxEntries: 2000,
+                  maxAgeSeconds: 60 * 60 * 24 * 365
                 }
               }
             }
           ]
+        },
+        devOptions: {
+          enabled: true,
+          type: 'module'
         },
         manifest: {
           id: "/",
