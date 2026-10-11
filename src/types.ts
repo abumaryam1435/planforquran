@@ -43,7 +43,7 @@ export interface DayPlan {
   isCompleted: boolean;
 }
 
-export type PlanType = 'memorization' | 'review' | 'juz' | 'flexible' | 'seven_castles';
+export type PlanType = 'memorization' | 'review' | 'juz' | 'flexible' | 'seven_castles' | 'global_preset';
 
 export interface FlexibleDayConfig {
   hasMemorization: boolean;
@@ -139,6 +139,11 @@ export interface QuranPlan {
   presetPlanId?: string;
   presetName?: string;
   continuousReview?: boolean;
+  isGlobalPresetMemorization?: boolean;
+  nearReviewPagesCount?: number;
+  nearReviewMode?: 'last_pages' | 'current_juz' | 'last_week';
+  distantReviewDailyAmount?: number;
+  distantReviewAmountType?: 'pages' | 'juz';
 }
 
 export interface ProgressLog {

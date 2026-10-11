@@ -188,7 +188,7 @@ export default function Home() {
                         </span>
                       ) : (
                         <span className="bg-[#D4AF37]/10 text-[#B8860B] dark:text-[#D4AF37] px-2.5 py-1 rounded-full text-[10px] font-bold">
-                          {plan.isSevenCastles ? 'القلاع السبع' : (plan.isFamiBiShawq ? 'فمي بشوق' : (plan.planType === 'review' ? 'قيد المراجعة' : 'قيد الحفظ'))}
+                          {plan.isGlobalPresetMemorization ? (plan.presetName || 'خطة حفظ معتمدة') : plan.isSevenCastles ? 'القلاع السبع' : (plan.isFamiBiShawq ? 'فمي بشوق' : (plan.planType === 'review' ? 'قيد المراجعة' : 'قيد الحفظ'))}
                         </span>
                       )}
                     </div>

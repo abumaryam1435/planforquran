@@ -23,6 +23,7 @@ import {
   Plus,
   Trash2,
   Sparkles,
+  Globe,
   Star,
   Shield,
   Award,
@@ -32,6 +33,8 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { SURAH_METADATAList } from "../utils/quranPageMapping";
+import { GLOBAL_MEMORIZATION_PRESETS, GlobalMemorizationPresetInfo } from "../data/globalMemorizationPresets";
+import { GlobalPresetMemorizationSection } from "../components/plan/GlobalPresetMemorizationSection";
 
 export interface PresetPlanInfo {
   id: string;
@@ -281,8 +284,14 @@ export default function CreatePlan() {
 
   // Memorization State
   const [planType, setPlanType] = useState<
-    "juz" | "seven_castles" | "flexible"
+    "juz" | "seven_castles" | "flexible" | "global_preset"
   >("seven_castles");
+  const [selectedGlobalPresetId, setSelectedGlobalPresetId] = useState<string>("al_husun_al_khamsah");
+  const [globalPresetCategory, setGlobalPresetCategory] = useState<string>("all");
+  const [globalPresetStartMode, setGlobalPresetStartMode] = useState<"from_beginning" | "descending_juz30" | "custom_pages">("from_beginning");
+  const [globalPresetDailyAmount, setGlobalPresetDailyAmount] = useState<DailyAmount>(DailyAmount.ONE_PAGE);
+  const [globalPresetFixationReps, setGlobalPresetFixationReps] = useState<number>(40);
+  const [globalPresetHasPriorMemorization, setGlobalPresetHasPriorMemorization] = useState<boolean>(false);
   const [flexibleDayConfigs, setFlexibleDayConfigs] = useState<
     Record<number, FlexibleDayConfig>
   >(() => {
@@ -360,6 +369,47 @@ export default function CreatePlan() {
   const [selectedOldJuzs, setSelectedOldJuzs] = useState<number[]>([]);
   const [selectedOldSurahs, setSelectedOldSurahs] = useState<string[]>([]);
   const [surahSearch, setSurahSearch] = useState<string>("");
+
+  const toggleOldJuz = (n: number) => {
+    setSelectedOldJuzs((prev) =>
+      prev.includes(n) ? prev.filter((x) => x !== n) : [...prev, n],
+    );
+  };
+
+  const toggleOldSurah = (name: string) => {
+    setSelectedOldSurahs((prev) =>
+      prev.includes(name) ? prev.filter((x) => x !== name) : [...prev, name],
+    );
+  };
+
+  const updateRange = (
+    index: number,
+    field: "start" | "end",
+    value: number,
+  ) => {
+    setOldMemorizationRanges((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [field]: value };
+      return next;
+    });
+  };
+
+  const removeRange = (index: number) => {
+    setOldMemorizationRanges((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const addRange = () => {
+    const lastRange =
+      oldMemorizationRanges[oldMemorizationRanges.length - 1];
+    const nextStart = lastRange
+      ? Math.min(604, Math.max(lastRange.start, lastRange.end) + 1)
+      : 1;
+    const nextEnd = Math.min(604, nextStart + 19);
+    setOldMemorizationRanges((prev) => [
+      ...prev,
+      { start: nextStart, end: nextEnd },
+    ]);
+  };
   const [isSevenCastlesDescending, setIsSevenCastlesDescending] =
     useState<boolean>(false);
   const [sevenCastlesStartMode, setSevenCastlesStartMode] = useState<
@@ -1033,7 +1083,7 @@ export default function CreatePlan() {
           pagesSet.add(p);
         }
       }
-    } else if (planType === "flexible") {
+    } else if (planType === "flexible" || planType === "global_preset") {
       const start = Math.min(604, Math.max(1, startPage));
       const end = Math.min(604, Math.max(1, endPage));
       const minP = Math.min(start, end);
@@ -1042,7 +1092,7 @@ export default function CreatePlan() {
         pagesSet.add(p);
       }
     }
-    const isDesc = (planType === "seven_castles" || planType === "juz") && isSevenCastlesDescending;
+    const isDesc = (planType === "seven_castles" || planType === "juz" || planType === "global_preset") && isSevenCastlesDescending;
     return Array.from(pagesSet).sort((a, b) => isDesc ? b - a : a - b);
   };
 
@@ -1108,6 +1158,10 @@ export default function CreatePlan() {
     }
     if (planType === "flexible") {
       return "خطة مرنة (صفحات مخصصة)";
+    }
+    if (planType === "global_preset") {
+      const found = GLOBAL_MEMORIZATION_PRESETS.find(p => p.id === selectedGlobalPresetId);
+      return found ? found.title : "خطة حفظ جاهزة عالمية معتمدة";
     }
     return "";
   };
@@ -1259,6 +1313,13 @@ export default function CreatePlan() {
       return "يُرجى تفعيل يوم حفظ واحد على الأقل لحساب المدة!";
     }
 
+    if (planType === "global_preset") {
+      const activePreset = GLOBAL_MEMORIZATION_PRESETS.find(p => p.id === selectedGlobalPresetId) || GLOBAL_MEMORIZATION_PRESETS[0];
+      const pagesPerWeek = pagesPerDay * 5;
+      const weeks = Math.ceil(totalPages / pagesPerWeek);
+      return `حوالي ${weeks} أسبوع (بمعدل 5 أيام حفظ وتثبيت أسبوعياً وفق منهج ${activePreset.title})`;
+    }
+
     // standard juz plan (5 days memorization per week)
     const pagesPerWeek = pagesPerDay * 5;
     const weeks = Math.ceil(totalPages / pagesPerWeek);
@@ -1281,6 +1342,10 @@ export default function CreatePlan() {
     }
     if (planType === "flexible") {
       return "خطة مخصصة ومرنة تتيح لك اختيار وتفصيل أيام الحفظ الدقيق وأيام التراكمي وتثبيت القريب والبعيد بما يتلاءم مع أسلوب حياتك وجدول أوقاتك اليومي.";
+    }
+    if (planType === "global_preset") {
+      const found = GLOBAL_MEMORIZATION_PRESETS.find(p => p.id === selectedGlobalPresetId);
+      return found ? found.fullDesc : "منهج حفظ عالمي معتمد يجمع بين الحفظ الجديد، والتثبيت بالتكرار، ومراجعة القريب، ومراجعة البعيد بالتدوير الدوري.";
     }
     return "";
   };
@@ -1504,9 +1569,19 @@ export default function CreatePlan() {
     };
 
     if (mainPlanType === "memorization") {
+      const isGlobalPreset = planType === "global_preset";
+      const selectedGlobalPreset =
+        GLOBAL_MEMORIZATION_PRESETS.find((p) => p.id === selectedGlobalPresetId) ||
+        GLOBAL_MEMORIZATION_PRESETS[0];
+
       planData = {
         ...sharedData,
         planType: "memorization",
+        isGlobalPresetMemorization: isGlobalPreset,
+        presetPlanId: isGlobalPreset ? selectedGlobalPreset.id : undefined,
+        presetName: isGlobalPreset ? selectedGlobalPreset.title : undefined,
+        nearReviewPagesCount: isGlobalPreset ? selectedGlobalPreset.nearReviewPagesCount : undefined,
+        distantReviewDailyAmount: isGlobalPreset ? selectedGlobalPreset.distantReviewDailyAmount : undefined,
         juzNumber:
           planType === "juz"
             ? selectedJuzsToMemorize[0] || 1
@@ -1554,7 +1629,7 @@ export default function CreatePlan() {
         oldMemSurahs: hasOldMemorization && oldMemType === "surah" ? selectedOldSurahs : undefined,
         isSevenCastles: planType === "seven_castles",
         isSevenCastlesDescending:
-          (planType === "seven_castles" || planType === "juz") ? isSevenCastlesDescending : false,
+          (planType === "seven_castles" || planType === "juz" || planType === "global_preset") ? isSevenCastlesDescending : false,
         sevenCastlesStartMode:
           planType === "seven_castles" ? sevenCastlesStartMode : undefined,
         isFlexible: planType === "flexible",
@@ -1577,7 +1652,7 @@ export default function CreatePlan() {
         juzPlanStartMode: planType === "juz" ? juzPlanStartMode : undefined,
         selectedJuzSurahs: planType === "juz" ? selectedJuzSurahs : undefined,
         memorizationTargetPages:
-          planType === "juz" || planType === "flexible"
+          planType === "juz" || planType === "flexible" || planType === "global_preset"
             ? getCombinedMemorizationPages()
             : undefined,
       };
@@ -2206,9 +2281,30 @@ export default function CreatePlan() {
                   <span className="hidden sm:inline">خطة مرنة</span>
                   <span className="sm:hidden">مرنة</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPlanType("global_preset");
+                    const found = GLOBAL_MEMORIZATION_PRESETS.find(p => p.id === selectedGlobalPresetId) || GLOBAL_MEMORIZATION_PRESETS[0];
+                    if (!planName || planName === "خطة حفظ" || planName.startsWith("خطة حفظ") || GLOBAL_MEMORIZATION_PRESETS.some(p => p.title === planName)) {
+                      setPlanName(found.title);
+                    }
+                  }}
+                  className={`flex-1 py-3 px-2 rounded-xl text-[11px] sm:text-xs font-bold flex items-center justify-center gap-1 transition-all min-w-[max-content] ${
+                    planType === "global_preset"
+                      ? "bg-emerald-600 text-white shadow-md dark:bg-emerald-600 dark:text-white"
+                      : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  }`}
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">خطط جاهزة عالمية</span>
+                  <span className="sm:hidden">جاهزة عالمية</span>
+                </button>
               </div>
 
-              {/* Seven Castles Plan Selection Mode */}
+              {planType !== "global_preset" ? (
+                <>
+                  {/* Seven Castles Plan Selection Mode */}
               {planType === "seven_castles" && (
                 <div className="space-y-3 p-4 bg-gray-50 dark:bg-white/5 rounded-2xl border border-gray-100 dark:border-white/5">
                   <label className="text-sm font-bold block dark:text-white">
@@ -3073,8 +3169,57 @@ export default function CreatePlan() {
                   </div>
                 </div>
               )}
-            </div>
+            </>
+          ) : (
+            <GlobalPresetMemorizationSection
+              selectedGlobalPresetId={selectedGlobalPresetId}
+              onSelectGlobalPreset={(preset) => {
+                setSelectedGlobalPresetId(preset.id);
+                setDailyAmount(preset.defaultDailyAmount);
+                setGlobalPresetDailyAmount(preset.defaultDailyAmount);
+                setFixationRepetitions(preset.defaultFixationReps);
+                setGlobalPresetFixationReps(preset.defaultFixationReps);
+                if (
+                  !planName ||
+                  planName === "خطة حفظ" ||
+                  planName.startsWith("خطة حفظ") ||
+                  GLOBAL_MEMORIZATION_PRESETS.some((p) => p.title === planName)
+                ) {
+                  setPlanName(preset.title);
+                }
+              }}
+              globalPresetCategory={globalPresetCategory}
+              setGlobalPresetCategory={setGlobalPresetCategory}
+              globalPresetStartMode={globalPresetStartMode}
+              setGlobalPresetStartMode={setGlobalPresetStartMode}
+              startPage={startPage}
+              setStartPage={setStartPage}
+              endPage={endPage}
+              setEndPage={setEndPage}
+              isSevenCastlesDescending={isSevenCastlesDescending}
+              setIsSevenCastlesDescending={setIsSevenCastlesDescending}
+              dailyAmount={dailyAmount}
+              setDailyAmount={setDailyAmount}
+              fixationRepetitions={fixationRepetitions}
+              setFixationRepetitions={setFixationRepetitions}
+              hasOldMemorization={hasOldMemorization}
+              setHasOldMemorization={setHasOldMemorization}
+              oldMemType={oldMemType}
+              setOldMemType={setOldMemType}
+              selectedOldJuzs={selectedOldJuzs}
+              toggleOldJuz={toggleOldJuz}
+              oldMemorizationRanges={oldMemorizationRanges}
+              updateRange={updateRange}
+              removeRange={removeRange}
+              addRange={addRange}
+              selectedOldSurahs={selectedOldSurahs}
+              toggleOldSurah={toggleOldSurah}
+            />
+          )}
+        </div>
 
+        {planType !== "global_preset" && (
+          <>
             {/* الخطوة الثالثة: تكرار المهام وتثبيتها لخطط الحفظ */}
             <div className="bg-white dark:bg-indigo-950/10 p-5 sm:p-6 rounded-[24px] border border-indigo-500/20 border-r-4 border-r-indigo-500 shadow-sm space-y-5 transition-colors">
               <div className="flex items-center gap-3 border-b border-indigo-500/10 pb-3">
@@ -3785,7 +3930,9 @@ export default function CreatePlan() {
               </div>
             </div>
           </>
-        ) : (
+        )}
+      </>
+    ) : (
           <>
             {/* الخطوة الثانية: تفاصيل الخطة ونطاق المراجعة لخطط المراجعة والتثبيت */}
             <div className="bg-white dark:bg-amber-950/10 p-5 sm:p-6 rounded-[24px] border border-amber-500/20 border-r-4 border-r-amber-500 shadow-sm space-y-5 transition-colors">

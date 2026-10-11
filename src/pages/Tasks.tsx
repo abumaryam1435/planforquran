@@ -72,7 +72,13 @@ const getTaskColorType = (task: any, activePlan?: any): string => {
     return 'basic_review';
   }
 
-  // Memorization / Parts Plan (خطة الأجزاء)
+  // Global Preset / Memorization / Parts Plan
+  if (task.id.startsWith('gp-near') || task.title.includes('القريب')) {
+    return 'weekly_review'; // مراجعة القريب
+  }
+  if (task.id.startsWith('gp-dist') || task.title.includes('البعيد')) {
+    return 'old_review'; // مراجعة البعيد
+  }
   if (task.id.startsWith('old-rev') || task.title.includes('القديم')) {
     return 'old_review'; // مراجعة القديم
   }

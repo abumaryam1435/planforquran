@@ -2166,7 +2166,259 @@ const getActiveCumulativePages = (targetPages: number[], plan: QuranPlan, target
   return targetPages.filter(p => !oldPagesBatch.has(p));
 };
 
+const getGlobalPresetMemorizationTasksForDate = (
+  date: Date,
+  plan: QuranPlan,
+  allLogs: ProgressLog[]
+): Task[] => {
+  const startDate = parsePlanDate(plan.startDate);
+  const targetDate = startOfDay(date);
+  if (targetDate < startDate) return [];
+
+  const startPage = Number(plan.startPage || 1);
+  const endPage = Number(plan.endPage || 604);
+  const isDescending = !!plan.isSevenCastlesDescending || (startPage > endPage);
+
+  let pagesPerDay = 1;
+  if (plan.dailyAmount === DailyAmount.QUARTER_PAGE) pagesPerDay = 0.25;
+  if (plan.dailyAmount === DailyAmount.HALF_PAGE) pagesPerDay = 0.5;
+  if (plan.dailyAmount === DailyAmount.TWO_PAGES) pagesPerDay = 2;
+  if (plan.dailyAmount === DailyAmount.QUARTER_HIZB) pagesPerDay = 2.5;
+  if (plan.dailyAmount === DailyAmount.THREE_PAGES) pagesPerDay = 3;
+  if (plan.dailyAmount === DailyAmount.FOUR_PAGES) pagesPerDay = 4;
+  if (plan.dailyAmount === DailyAmount.FIVE_PAGES) pagesPerDay = 5;
+
+  let rawPages: number[] = plan.memorizationTargetPages || [];
+  if (rawPages.length === 0) {
+    if (isDescending) {
+      for (let p = Math.max(startPage, endPage); p >= Math.min(startPage, endPage); p--) {
+        rawPages.push(p);
+      }
+    } else {
+      for (let p = Math.min(startPage, endPage); p <= Math.max(startPage, endPage); p++) {
+        rawPages.push(p);
+      }
+    }
+  } else {
+    rawPages = [...rawPages].sort((a, b) => (isDescending ? b - a : a - b));
+  }
+
+  const units = getMemorizationUnits(rawPages, pagesPerDay, plan);
+
+  let currentUnitIndex = 0;
+  let currentLogDate = new Date(startDate);
+
+  let todayUnits: MemorizationUnit[] = [];
+  let todayPages: number[] = [];
+  const memorizedPagesBeforeToday: number[] = [];
+  const weekPagesThisWeek: number[] = [];
+
+  const targetDateStr = format(targetDate, 'yyyyMMdd');
+
+  while (!isAfter(currentLogDate, targetDate)) {
+    const isTarget = currentLogDate.getTime() === targetDate.getTime();
+    const realD = getDay(currentLogDate);
+    const d = (realD - (plan.firstDayOfWeek || 0) + 7) % 7;
+
+    // 5 active memorization days per week (d: 0, 1, 2, 3, 4)
+    const isMemDay = d >= 0 && d <= 4;
+
+    let dayUnitsToday: MemorizationUnit[] = [];
+    let dayPagesTodaySet = new Set<number>();
+
+    if (isMemDay && currentUnitIndex < units.length) {
+      let accumulatedWeight = 0;
+      while (currentUnitIndex < units.length && accumulatedWeight < pagesPerDay) {
+        const u = units[currentUnitIndex];
+        dayUnitsToday.push(u);
+        u.pages.forEach(p => dayPagesTodaySet.add(p));
+        accumulatedWeight += u.weight;
+        currentUnitIndex++;
+      }
+    }
+
+    const dayPagesToday = [...dayPagesTodaySet].sort((a, b) => (isDescending ? b - a : a - b));
+
+    if (isTarget) {
+      todayUnits = dayUnitsToday;
+      todayPages = dayPagesToday;
+    } else {
+      dayPagesToday.forEach(p => {
+        if (!memorizedPagesBeforeToday.includes(p)) {
+          memorizedPagesBeforeToday.push(p);
+        }
+      });
+    }
+
+    // Track week units for current relative week
+    const targetRealD = getDay(targetDate);
+    const targetD = (targetRealD - (plan.firstDayOfWeek || 0) + 7) % 7;
+    const weekStartCurrent = addDays(targetDate, -targetD);
+    if (!isAfter(weekStartCurrent, currentLogDate)) {
+      dayPagesToday.forEach(p => {
+        if (!weekPagesThisWeek.includes(p)) weekPagesThisWeek.push(p);
+      });
+    }
+
+    currentLogDate = addDays(currentLogDate, 1);
+  }
+
+  const tasks: Task[] = [];
+  const detailedText = todayUnits.length > 0 ? formatUnitsTitle(todayUnits) : "";
+  const realD = getDay(targetDate);
+  const d = (realD - (plan.firstDayOfWeek || 0) + 7) % 7;
+  const isWeekendReviewDay = d === 5 || d === 6;
+
+  // 1. مهمة الاستماع والحفظ الجديد (في أيام الحفظ d: 0..4)
+  if (!isWeekendReviewDay && todayPages.length > 0) {
+    tasks.push({
+      id: `gp-lis-${targetDateStr}`,
+      title: `استماع: ${detailedText}`,
+      type: TaskType.LISTENING,
+      completed: false,
+      targetCount: 1,
+      currentCount: 0,
+      pages: todayPages,
+    });
+
+    tasks.push({
+      id: `gp-mem-${targetDateStr}`,
+      title: `حفظ جديد: ${detailedText}`,
+      type: TaskType.MEMORIZATION,
+      completed: false,
+      targetCount: 1,
+      currentCount: 0,
+      pages: todayPages,
+    });
+
+    // 2. مهمة التثبيت (بعدد التكرارات المعتمد)
+    const reps = plan.fixationRepetitions || 40;
+    tasks.push({
+      id: `gp-fix-${targetDateStr}`,
+      title: `تثبيت ${detailedText} (${reps} تكراراً)`,
+      type: TaskType.FIXATION,
+      completed: false,
+      targetCount: reps,
+      currentCount: 0,
+      pages: todayPages,
+    });
+  } else if (isWeekendReviewDay) {
+    // في عطلة نهاية الأسبوع: تثبيت ومراجعة مركزة لمحفوظ الأسبوع
+    if (weekPagesThisWeek.length > 0) {
+      tasks.push({
+        id: `gp-week-fix-${targetDateStr}`,
+        title: d === 5
+          ? `تثبيت ومراجعة محفوظ الأسبوع (${weekPagesThisWeek.length} ص): ${formatDetailedPages(weekPagesThisWeek, undefined, undefined, true)}`
+          : `سرد وتسميع محفوظ الأسبوع (${weekPagesThisWeek.length} ص): ${formatDetailedPages(weekPagesThisWeek, undefined, undefined, true)}`,
+        type: TaskType.FIXATION,
+        completed: false,
+        targetCount: d === 5 ? 3 : 1,
+        currentCount: 0,
+        pages: weekPagesThisWeek,
+      });
+    }
+  }
+
+  // 3. مهمة مراجعة القريب (Near Review)
+  const nearCount = plan.nearReviewPagesCount || 20;
+  let nearPages: number[] = [];
+
+  if (memorizedPagesBeforeToday.length > 0) {
+    nearPages = memorizedPagesBeforeToday.slice(-nearCount);
+  } else if (todayPages.length > 0) {
+    nearPages = todayPages;
+  }
+
+  if (nearPages.length > 0) {
+    const nearDetailed = formatDetailedPages(nearPages, undefined, undefined, true);
+    const nearReps = (plan.presetPlanId === "king_fahd_memorization" || plan.presetPlanId === "al_hifdh_al_mutqan") ? 3 : 1;
+    tasks.push({
+      id: `gp-near-${targetDateStr}`,
+      title: `مراجعة القريب (${nearPages.length} ص)${nearReps > 1 ? ` مكررة ${nearReps}x` : ''}: ${nearDetailed}`,
+      type: TaskType.REVIEW,
+      completed: false,
+      targetCount: nearReps,
+      currentCount: 0,
+      pages: nearPages,
+    });
+  }
+
+  // 4. مهمة مراجعة البعيد (Distant Review)
+  const dailyDistant = plan.distantReviewDailyAmount || 20;
+  const daysDiff = differenceInCalendarDays(targetDate, startDate);
+
+  if (plan.hasOldMemorization && plan.oldMemorizedPages && plan.oldMemorizedPages.length > 0) {
+    const oldPages = [...plan.oldMemorizedPages];
+    const startIdx = (daysDiff * dailyDistant) % oldPages.length;
+    const distantSlice: number[] = [];
+    for (let i = 0; i < Math.min(dailyDistant, oldPages.length); i++) {
+      distantSlice.push(oldPages[(startIdx + i) % oldPages.length]);
+    }
+    const distDetailed = formatDetailedPages(distantSlice, undefined, undefined, true);
+    tasks.push({
+      id: `gp-dist-${targetDateStr}`,
+      title: `مراجعة البعيد (المحفوظ القديم - ${distantSlice.length} ص): ${distDetailed}`,
+      type: TaskType.CUMULATIVE_REVIEW,
+      completed: false,
+      targetCount: 1,
+      currentCount: 0,
+      pages: distantSlice,
+    });
+  } else {
+    // التدوير التلقائي للمحفوظ الذي تجاوز نطاق القريب
+    if (memorizedPagesBeforeToday.length > nearCount) {
+      const distantPool = memorizedPagesBeforeToday.slice(0, memorizedPagesBeforeToday.length - nearCount);
+      const startIdx = (daysDiff * dailyDistant) % distantPool.length;
+      const distantSlice: number[] = [];
+      for (let i = 0; i < Math.min(dailyDistant, distantPool.length); i++) {
+        distantSlice.push(distantPool[(startIdx + i) % distantPool.length]);
+      }
+      const distDetailed = formatDetailedPages(distantSlice, undefined, undefined, true);
+      tasks.push({
+        id: `gp-dist-${targetDateStr}`,
+        title: `مراجعة البعيد (المحفوظ التراكمي السابق - ${distantSlice.length} ص): ${distDetailed}`,
+        type: TaskType.CUMULATIVE_REVIEW,
+        completed: false,
+        targetCount: 1,
+        currentCount: 0,
+        pages: distantSlice,
+      });
+    } else if (memorizedPagesBeforeToday.length > 0) {
+      // في الأسابيع الأولى قبل تجاوز نطاق القريب: مراجعة تراكمية دورية
+      const distDetailed = formatDetailedPages(memorizedPagesBeforeToday, undefined, undefined, true);
+      tasks.push({
+        id: `gp-dist-${targetDateStr}`,
+        title: `مراجعة البعيد والتراكمي (${memorizedPagesBeforeToday.length} ص): ${distDetailed}`,
+        type: TaskType.CUMULATIVE_REVIEW,
+        completed: false,
+        targetCount: 1,
+        currentCount: 0,
+        pages: memorizedPagesBeforeToday,
+      });
+    }
+  }
+
+  // 5. مهمة التسميع (Recitation)
+  const recPages = [...new Set([...todayPages, ...nearPages])].slice(0, 10);
+  tasks.push({
+    id: `gp-rec-${targetDateStr}`,
+    title: isWeekendReviewDay
+      ? `تسميع غيبي شامل لمحفوظ الأسبوع والقريب`
+      : `تسميع ${detailedText ? detailedText : 'الحفظ الجديد'} ومراجعة القريب`,
+    type: TaskType.RECITATION,
+    completed: false,
+    targetCount: 1,
+    currentCount: 0,
+    pages: recPages.length > 0 ? recPages : (todayPages.length > 0 ? todayPages : [1]),
+  });
+
+  return tasks;
+};
+
 const getTasksForDateBaseNew = (date: Date, plan: QuranPlan, allLogs: ProgressLog[]): Task[] => {
+  if (plan.isGlobalPresetMemorization) {
+    return getGlobalPresetMemorizationTasksForDate(date, plan, allLogs);
+  }
   if (plan.isFlexible) {
     return getFlexibleTasksForDate(date, plan, allLogs);
   }
@@ -3790,7 +4042,9 @@ export const getTasksForDate = (date: Date, plan: QuranPlan, allLogs: ProgressLo
 
   let shouldAddOldReview = true;
   
-  if (!plan.isFlexible && !plan.isSevenCastles && plan.planType !== 'review') {
+  if (plan.isGlobalPresetMemorization) {
+    shouldAddOldReview = false;
+  } else if (!plan.isFlexible && !plan.isSevenCastles && plan.planType !== 'review') {
       const realD = getDay(startOfDay(date));
       const planD = (realD - (plan.firstDayOfWeek || 0) + 7) % 7; 
       // User says: الأيام الأول والثالث والخامس والسادس والسابع

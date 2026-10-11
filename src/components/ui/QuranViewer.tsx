@@ -133,12 +133,12 @@ interface QuranPageCardProps {
   } | null;
   playingAyahSegments: AyahSegment[];
   quranWords: any[] | null;
-  pageContainerRef: React.RefObject<HTMLDivElement>;
-  onPointerDown: (e: React.PointerEvent) => void;
-  onPointerMove: (e: React.PointerEvent) => void;
-  onPointerUp: (e: React.PointerEvent) => void;
-  onPointerCancel: (e: React.PointerEvent) => void;
-  onClick: (e: React.MouseEvent) => void;
+  registerContainerRef: (node: HTMLDivElement | null) => void;
+  onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onPointerUp: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onPointerCancel: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onClick: (e: React.MouseEvent<HTMLDivElement>) => void;
 }
 
 const QuranPageCard: React.FC<QuranPageCardProps> = ({
@@ -152,7 +152,7 @@ const QuranPageCard: React.FC<QuranPageCardProps> = ({
   selectedRange,
   playingAyahSegments,
   quranWords,
-  pageContainerRef,
+  registerContainerRef,
   onPointerDown,
   onPointerMove,
   onPointerUp,
@@ -278,18 +278,24 @@ const QuranPageCard: React.FC<QuranPageCardProps> = ({
 
   return (
     <div
-      ref={pageContainerRef}
+      ref={registerContainerRef}
+      data-quran-page-card="true"
+      data-page-number={pageNumber}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
       onClick={onClick}
       onContextMenu={e => e.preventDefault()}
+      draggable={false}
       style={{
         width: `${boxWidth}px`,
         height: `${boxHeight}px`,
         aspectRatio: `${CANVAS_WIDTH} / ${CANVAS_HEIGHT}`,
-        touchAction: 'none'
+        touchAction: 'none',
+        WebkitTouchCallout: 'none',
+        WebkitUserSelect: 'none',
+        userSelect: 'none'
       }}
       className="relative bg-[#FFFDF9] dark:bg-[#1C1C1E] rounded-xl sm:rounded-2xl border-2 sm:border-4 border-double border-amber-950/20 dark:border-amber-500/20 shadow-2xl overflow-hidden flex items-center justify-center select-none"
     >
@@ -578,6 +584,7 @@ export function QuranViewer({
         return;
       }
 
+      setQuranWords(null);
       setLoadingText(true);
       try {
         const wordsUrl = `https://api.quran.com/api/v4/verses/by_page/${currentPage}?words=true&word_fields=text_uthmani,line_number&per_page=50`;
@@ -673,23 +680,57 @@ export function QuranViewer({
 
   const [shareModalTarget, setShareModalTarget] = useState<AyahShareTarget | null>(null);
 
-  const pageContainerRef = useRef<HTMLDivElement>(null);
+  const pageContainerRef = useRef<HTMLDivElement | null>(null);
+  const pressedCardRef = useRef<HTMLElement | null>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pointerStartPosRef = useRef<{ x: number; y: number } | null>(null);
   const wasLongPressTriggeredRef = useRef<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  const registerPageContainer = useCallback((node: HTMLDivElement | null) => {
+    if (node) {
+      pageContainerRef.current = node;
+    } else if (pageContainerRef.current && !pageContainerRef.current.isConnected) {
+      pageContainerRef.current = null;
+    }
+  }, []);
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelectedRange(null);
+    cancelLongPress();
+    pointerStartPosRef.current = null;
+    pressedCardRef.current = null;
+    wasLongPressTriggeredRef.current = false;
+    touchStartRef.current = null;
+    mouseStartRef.current = null;
+    isSwipingRef.current = false;
+    setIsDragging(false);
+    setDragOffset(0);
+  }, [cancelLongPress]);
+
   // Clear selection on page turn
   useEffect(() => {
-    setSelectedRange(null);
-  }, [currentPage]);
+    clearSelection();
+  }, [currentPage, clearSelection]);
 
   const findAyahAtCoordinates = useCallback(
-    (svgX: number, svgY: number): { surah: number; ayah: number } | null => {
+    (svgX: number, svgY: number, targetPage?: number): { surah: number; ayah: number } | null => {
+      const activePage = targetPage || currentPage;
+      const currentSegments = (pageSegments && pageSegments.length > 0)
+        ? pageSegments
+        : getAyahSegmentsForPage(activePage, quranWords || undefined);
+
       // 1. Check loaded pageSegments (high precision word/ayah bounds)
-      if (pageSegments && pageSegments.length > 0) {
+      if (currentSegments && currentSegments.length > 0) {
         // Direct segment match with generous bounding box (+24px vertically, +20px horizontally)
-        for (const seg of pageSegments) {
+        for (const seg of currentSegments) {
           const [s, a, , x1, x2, y1, y2] = seg;
           if (svgY >= y1 - 24 && svgY <= y2 + 24 && svgX >= Math.min(x1, x2) - 20 && svgX <= Math.max(x1, x2) + 20) {
             return { surah: s, ayah: a };
@@ -699,7 +740,7 @@ export function QuranViewer({
         // Proximity line match
         let closestLine = -1;
         let minLineDist = Infinity;
-        for (const seg of pageSegments) {
+        for (const seg of currentSegments) {
           const [, , line, , , y1, y2] = seg;
           const lineCenterY = (y1 + y2) / 2;
           const distY = Math.abs(svgY - lineCenterY);
@@ -710,7 +751,7 @@ export function QuranViewer({
         }
 
         if (closestLine !== -1 && minLineDist < 120) {
-          const lineSegs = pageSegments.filter(s => s[2] === closestLine);
+          const lineSegs = currentSegments.filter(s => s[2] === closestLine);
           if (lineSegs.length > 0) {
             // Check if within x-bounds of any segment on this line
             for (const seg of lineSegs) {
@@ -743,7 +784,7 @@ export function QuranViewer({
 
       // 2. Direct Geometric Line-to-Ayah Mapping Fallback
       // Guaranteed to resolve an ayah on the current page even if words API failed or offline
-      const pageRanges = getVerseRangeForPage(currentPage);
+      const pageRanges = getVerseRangeForPage(activePage);
       if (pageRanges && pageRanges.length > 0) {
         // Collect all verses on this page in reading order
         const allVerses: { surah: number; ayah: number }[] = [];
@@ -765,9 +806,9 @@ export function QuranViewer({
           }
 
           // Compute normalized line position (1 to 15, or 1 to 7 for pages 1-2)
-          const totalLines = currentPage <= 2 ? 7 : 15;
-          const firstPeakY = currentPage <= 2 ? FRAME_FIRST_LINE_PEAK_Y : PAGE_FIRST_LINE_PEAK_Y;
-          const stepY = currentPage <= 2 ? FRAME_LINE_STEP_Y : PAGE_LINE_STEP_Y;
+          const totalLines = activePage <= 2 ? 7 : 15;
+          const firstPeakY = activePage <= 2 ? FRAME_FIRST_LINE_PEAK_Y : PAGE_FIRST_LINE_PEAK_Y;
+          const stepY = activePage <= 2 ? FRAME_LINE_STEP_Y : PAGE_LINE_STEP_Y;
 
           // Estimate line index based on Y coordinate
           let estimatedLine = Math.round((svgY - firstPeakY) / stepY) + 1;
@@ -782,36 +823,52 @@ export function QuranViewer({
 
       return null;
     },
-    [pageSegments, currentPage]
+    [pageSegments, currentPage, quranWords]
   );
 
-  const startLongPress = (clientX: number, clientY: number) => {
-    pointerStartPosRef.current = { x: clientX, y: clientY };
-    wasLongPressTriggeredRef.current = false;
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
+  const triggerSelectionAt = (clientX: number, clientY: number, targetEl?: HTMLElement | null) => {
+    // Robust active card element resolution:
+    // 1. Target element passed directly from the pointer event
+    let cardEl: HTMLElement | null = null;
+    if (targetEl && targetEl.isConnected) {
+      const r = targetEl.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) cardEl = targetEl;
     }
-    // 380ms response window for responsive touch
-    longPressTimerRef.current = setTimeout(() => {
-      wasLongPressTriggeredRef.current = true;
-      triggerSelectionAt(clientX, clientY);
-    }, 380);
-  };
-
-  const cancelLongPress = () => {
-    if (longPressTimerRef.current) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
+    // 2. Active ref card element if still connected to DOM
+    if (!cardEl && pageContainerRef.current && pageContainerRef.current.isConnected) {
+      const r = pageContainerRef.current.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) cardEl = pageContainerRef.current;
     }
-  };
+    // 3. Last pressed card element fallback
+    if (!cardEl && pressedCardRef.current && pressedCardRef.current.isConnected) {
+      const r = pressedCardRef.current.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) cardEl = pressedCardRef.current;
+    }
+    // 4. Query current active Quran page card in DOM
+    if (!cardEl) {
+      const cards = document.querySelectorAll<HTMLDivElement>('[data-quran-page-card="true"]');
+      for (let i = cards.length - 1; i >= 0; i--) {
+        const c = cards[i];
+        if (c.isConnected) {
+          const r = c.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0) {
+            cardEl = c;
+            pageContainerRef.current = c;
+            break;
+          }
+        }
+      }
+    }
 
-  const triggerSelectionAt = (clientX: number, clientY: number) => {
-    if (!pageContainerRef.current) return;
-    const rect = pageContainerRef.current.getBoundingClientRect();
+    if (!cardEl) return;
+    const rect = cardEl.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+
     const svgX = ((clientX - rect.left) / rect.width) * CANVAS_WIDTH;
     const svgY = ((clientY - rect.top) / rect.height) * CANVAS_HEIGHT;
 
-    const hit = findAyahAtCoordinates(svgX, svgY);
+    const targetPage = Number(cardEl.getAttribute('data-page-number')) || currentPage;
+    const hit = findAyahAtCoordinates(svgX, svgY, targetPage);
     if (!hit) return;
 
     try {
@@ -821,49 +878,63 @@ export function QuranViewer({
     const meta = SURAH_METADATAList[hit.surah - 1];
     const surahName = meta ? meta.name : `سورة ${hit.surah}`;
 
-    setSelectedRange(prev => {
-      if (prev && prev.surah === hit.surah) {
-        const start = Math.min(prev.startAyah, hit.ayah);
-        const end = Math.max(prev.startAyah, hit.ayah);
-        return {
-          surah: hit.surah,
-          surahName,
-          startAyah: start,
-          endAyah: end
-        };
-      }
-      return {
-        surah: hit.surah,
-        surahName,
-        startAyah: hit.ayah,
-        endAyah: hit.ayah
-      };
+    // Always select the targeted ayah cleanly and freshly on long-press
+    setSelectedRange({
+      surah: hit.surah,
+      surahName,
+      startAyah: hit.ayah,
+      endAyah: hit.ayah
     });
   };
 
-  const handlePagePointerDown = (e: React.PointerEvent) => {
-    if (e.button !== 0 && e.pointerType === 'mouse') return;
-    startLongPress(e.clientX, e.clientY);
+  const startLongPress = (clientX: number, clientY: number, targetEl?: HTMLElement | null) => {
+    pointerStartPosRef.current = { x: clientX, y: clientY };
+    pressedCardRef.current = targetEl || null;
+    wasLongPressTriggeredRef.current = false;
+    cancelLongPress();
+
+    // 350ms snappy response window for responsive touch
+    longPressTimerRef.current = setTimeout(() => {
+      wasLongPressTriggeredRef.current = true;
+      triggerSelectionAt(clientX, clientY, pressedCardRef.current);
+      // Auto-reset wasLongPressTriggeredRef after 400ms to keep click pipeline pristine
+      setTimeout(() => {
+        wasLongPressTriggeredRef.current = false;
+      }, 400);
+    }, 350);
   };
 
-  const handlePagePointerMove = (e: React.PointerEvent) => {
+  const handlePagePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    const currentCard = e.currentTarget;
+    if (currentCard) {
+      pageContainerRef.current = currentCard;
+    }
+    startLongPress(e.clientX, e.clientY, currentCard);
+  };
+
+  const handlePagePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!pointerStartPosRef.current) return;
     const dist = Math.hypot(
       e.clientX - pointerStartPosRef.current.x,
       e.clientY - pointerStartPosRef.current.y
     );
-    // Allow natural finger jitter up to 22px without cancelling the selection hold
-    if (dist > 22) {
+    // Allow natural finger jitter up to 26px without cancelling the selection hold
+    if (dist > 26) {
       cancelLongPress();
     }
   };
 
   const handlePagePointerUp = () => {
     cancelLongPress();
+    pointerStartPosRef.current = null;
   };
 
   const handlePagePointerCancel = () => {
-    cancelLongPress();
+    if (!wasLongPressTriggeredRef.current) {
+      cancelLongPress();
+    }
+    pointerStartPosRef.current = null;
   };
 
   const handlePageClick = (e: React.MouseEvent) => {
@@ -873,21 +944,11 @@ export function QuranViewer({
       return;
     }
 
-    if (selectedRange && pageContainerRef.current) {
-      const rect = pageContainerRef.current.getBoundingClientRect();
-      const svgX = ((e.clientX - rect.left) / rect.width) * CANVAS_WIDTH;
-      const svgY = ((e.clientY - rect.top) / rect.height) * CANVAS_HEIGHT;
-      const hit = findAyahAtCoordinates(svgX, svgY);
-      if (hit && hit.surah === selectedRange.surah) {
-        e.stopPropagation();
-        const start = Math.min(selectedRange.startAyah, hit.ayah);
-        const end = Math.max(selectedRange.startAyah, hit.ayah);
-        setSelectedRange({
-          ...selectedRange,
-          startAyah: start,
-          endAyah: end
-        });
-      }
+    // If selection toolbar is active and user taps the page, dismiss the selection cleanly
+    if (selectedRange) {
+      e.stopPropagation();
+      clearSelection();
+      return;
     }
   };
 
@@ -1152,6 +1213,11 @@ export function QuranViewer({
             isSwipingRef.current = false;
             return;
           }
+          // If selection toolbar is active, a tap outside cleanly dismisses it
+          if (selectedRange) {
+            clearSelection();
+            return;
+          }
           const clickX = e.clientX;
           const windowW = window.innerWidth;
           // Right 20% of screen -> Next page
@@ -1206,7 +1272,7 @@ export function QuranViewer({
               selectedRange={selectedRange}
               playingAyahSegments={playingAyahSegments}
               quranWords={quranWords}
-              pageContainerRef={pageContainerRef}
+              registerContainerRef={registerPageContainer}
               onPointerDown={handlePagePointerDown}
               onPointerMove={handlePagePointerMove}
               onPointerUp={handlePagePointerUp}
@@ -1531,6 +1597,12 @@ export function QuranViewer({
             transition={{ type: 'spring', stiffness: 350, damping: 28 }}
             className="absolute bottom-5 left-3 right-3 sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-md z-[120] p-3 rounded-2xl bg-[#172417]/95 dark:bg-[#1C1C1E]/95 text-white backdrop-blur-md shadow-2xl border border-amber-500/40 flex flex-col gap-2.5"
             onClick={e => e.stopPropagation()}
+            onPointerDown={e => e.stopPropagation()}
+            onTouchStart={e => e.stopPropagation()}
+            onTouchMove={e => e.stopPropagation()}
+            onTouchEnd={e => e.stopPropagation()}
+            onMouseDown={e => e.stopPropagation()}
+            onMouseUp={e => e.stopPropagation()}
           >
             {/* Header info & Range Adjuster */}
             <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-2">
@@ -1578,7 +1650,10 @@ export function QuranViewer({
               </div>
 
               <button
-                onClick={() => setSelectedRange(null)}
+                onClick={e => {
+                  e.stopPropagation();
+                  clearSelection();
+                }}
                 className="p-1 rounded-full hover:bg-white/10 text-white/70 hover:text-white transition-colors cursor-pointer"
                 title="إلغاء التحديد"
               >
@@ -1626,7 +1701,10 @@ export function QuranViewer({
       {/* 4-Way Verses Share Modal: Text, Audio, Image, Video */}
       <AyahShareModal
         isOpen={!!shareModalTarget}
-        onClose={() => setShareModalTarget(null)}
+        onClose={() => {
+          setShareModalTarget(null);
+          clearSelection();
+        }}
         target={shareModalTarget}
       />
     </motion.div>

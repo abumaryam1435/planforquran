@@ -1,0 +1,173 @@
+import { DailyAmount } from "../types";
+
+export interface GlobalMemorizationPresetInfo {
+  id: string;
+  category: "popular" | "haramein_associations" | "traditional_mahadir" | "intensive";
+  title: string;
+  badge: string;
+  tag: string;
+  shortDesc: string;
+  fullDesc: string;
+  methodologyTip: string;
+  defaultDailyAmount: DailyAmount;
+  dailyPaceText: string;
+  defaultFixationReps: number;
+  fixationText: string;
+  nearReviewPagesCount: number;
+  nearReviewText: string;
+  distantReviewDailyAmount: number;
+  distantReviewText: string;
+  recitationText: string;
+  color: "emerald" | "amber" | "blue" | "teal" | "indigo" | "purple" | "rose";
+  iconType: "shield" | "award" | "book" | "compass" | "sparkles" | "flame";
+}
+
+export const GLOBAL_MEMORIZATION_PRESETS: GlobalMemorizationPresetInfo[] = [
+  {
+    id: "al_husun_al_khamsah",
+    category: "popular",
+    title: "منهج الحصون الخمسة المعتمد (د. سعيد حمزة)",
+    badge: "المنهج الأكثر انتشاراً ونجاحاً في العالم الإسلامي",
+    tag: "منهج عالمي معتمد",
+    shortDesc: "المنهج المتكامل الشامل: تحضير، حفظ صفحة يومياً، تثبيت 40 تكراراً، مراجعة القريب (آخر 20 صفحة)، ومراجعة البعيد (سرد جزء يومياً).",
+    fullDesc: "المنهج الأشهر والأكثر نجاحاً وتطبيقاً في العالم الإسلامي لتثبيت القرآن وإتقانه كالفاتحة. يقوم على أركان حصينة تحمي الحفظ من النسيان: حفظ صفحة واحدة يومياً، تثبيتها بـ 40 تكراراً، مراجعة القريب بلا انقطاع لآخر 20 صفحة تم حفظها، ومراجعة البعيد بسرد جزء كامل يومياً من المحفوظ القديم بالتدوير المستمر.",
+    methodologyTip: "سر نجاح الحصون الخمسة هو عدم تجاوز مراجعة القريب (20 صفحة) أبداً، فهي السياج الحامي للحفظ الجديد قبل أن يتحول إلى محفوظ بعيد.",
+    defaultDailyAmount: DailyAmount.ONE_PAGE,
+    dailyPaceText: "صفحة واحدة يومياً (الوجه اليومي)",
+    defaultFixationReps: 40,
+    fixationText: "تثبيت الورد الجديد 40 تكراراً متصلاً",
+    nearReviewPagesCount: 20,
+    nearReviewText: "آخر 20 صفحة محفوظة (حزب كامل مكرر يومياً)",
+    distantReviewDailyAmount: 20,
+    distantReviewText: "سرد جزء كامل (20 صفحة) يومياً من المحفوظ القديم",
+    recitationText: "تسميع غيبي يومي لصفحة الحفظ والقريب",
+    color: "emerald",
+    iconType: "shield",
+  },
+  {
+    id: "shinqiti_memorization",
+    category: "traditional_mahadir",
+    title: "طريقة المحاظر الشنقيطية (الموريتانية العريقة)",
+    badge: "رسوخ أسطوري كالفاتحة بالتكرار الخمسيني",
+    tag: "تراث المحاظر الموريتانية",
+    shortDesc: "المنهج الموريتاني الراسخ: حفظ لوح كامل (صفحة)، تثبيته بـ 50 تكراراً دبر الصلوات، ربط آخر 5 ألواح (قريب)، وسرد جزء قديم (بعيد).",
+    fullDesc: "المنهج التاريخي المتوارث في أقدم محاظر شنقيط، حيث يخرج الحافظ وهو يستحضر الآيات كالشمس. يعتمد على كتابة اللوح وحفظه، وتكراره 50 مرة (10 تكرارات دبر كل صلاة مكتوبة)، مع ربط آخر 5 ألواح يومياً قبل الحفظ الجديد، وسرد جزء كامل يومياً من دراية الألواح القديمة.",
+    methodologyTip: "توزيع التكرار الخمسيني على دبر الصلوات الخمس المكتوبة يعطي الدماغ فترات راحة واستيعاب تجعل الحفظ محفوراً في الذاكرة الدائمة.",
+    defaultDailyAmount: DailyAmount.ONE_PAGE,
+    dailyPaceText: "لوح كامل (صفحة واحدة) يومياً",
+    defaultFixationReps: 50,
+    fixationText: "50 تكراراً (10 دبر كل صلاة مكتوبة)",
+    nearReviewPagesCount: 5,
+    nearReviewText: "ربط آخر 5 ألواح (5 صفحات) قبل البدء في الحفظ",
+    distantReviewDailyAmount: 20,
+    distantReviewText: "دراية وسرد جزء كامل (20 صفحة) يومياً",
+    recitationText: "تسميع اللوح غيباً على الشيخ صباحاً ومساءً",
+    color: "amber",
+    iconType: "award",
+  },
+  {
+    id: "king_fahd_memorization",
+    category: "haramein_associations",
+    title: "منهج مجمع الملك فهد والجمعيات النموذجية",
+    badge: "المنهج الأكاديمي المعتمد في جمعيات تحفيظ القرآن",
+    tag: "معتمد في كبرى الجمعيات",
+    shortDesc: "منهج الحلقات القرآنية النموذجية: حفظ صفحة واحدة، تثبيت 20 مرة، مراجعة قريب (حزب مكرر 3 مرات)، ومراجعة بعيد (جزء يومياً).",
+    fullDesc: "المنهج النموذجي المطبق في حلقات تحفيظ القرآن بمجمع الملك فهد وكبرى جمعيات التحفيظ بالمملكة: يقوم على مسارات واضحة ومتوازية؛ حفظ وجه متقن مع الضبط والتجويد، تثبيته 20 تكراراً مع ربطه بالسابق، مراجعة القريب بمعدل حزب كامل (10 صفحات) مكرر 3 مرات، وسرد جزء كامل يومياً من المحفوظ التراكمي القديم.",
+    methodologyTip: "تكرار مراجعة القريب 3 مرات يضمن إغلاق أي ثغرات أو نسيان قبل انتقال الآيات إلى الحفظ القديم الراسخ.",
+    defaultDailyAmount: DailyAmount.ONE_PAGE,
+    dailyPaceText: "صفحة واحدة يومياً مع تحقيق الرسم والتجويد",
+    defaultFixationReps: 20,
+    fixationText: "تثبيت 20 تكراراً وربط أطراف الصفحات",
+    nearReviewPagesCount: 10,
+    nearReviewText: "حزب كامل (10 صفحات) مكرر 3 مرات يومياً",
+    distantReviewDailyAmount: 20,
+    distantReviewText: "سرد جزء كامل يومياً من المحفوظ القديم",
+    recitationText: "عرض يومي في مجلس الإقراء أو التسجيل الصوتي",
+    color: "blue",
+    iconType: "book",
+  },
+  {
+    id: "prophet_mosque_memorization",
+    category: "haramein_associations",
+    title: "منهج حلقات القرآن بالمسجد النبوي الشريف",
+    badge: "منهج الحرمين الشريفين للإتقان والضبط المتين",
+    tag: "منهج الحرم النبوي المعتمد",
+    shortDesc: "منهج حلقات الحرم النبوي: حفظ وجه يومياً بتثبيت 25 تكراراً، مراجعة كامل الجزء الحالي (قريب)، وسرد جزأين يومياً من الأجزاء السابقة (بعيد).",
+    fullDesc: "المنهج المعتمد في كلية وحلقات المسجد النبوي الشريف بالمدينة المنورة: يقوم على حفظ وجه يومياً بعد استماعه وتصحيحه، تثبيته 25 مرة، مراجعة القريب عبر سرد كل ما حُفظ في الجزء الحالي من بدايته حتى ورد اليوم، وسرد جزأين كاملين يومياً من الأجزاء المكتملة السابقة لختم المحفوظ كل أسبوعين.",
+    methodologyTip: "مراجعة كامل الجزء الحالي الذي يُحفظ فيه تضمن ربط السور والأرباع ببعضها فلا يشعر الحافظ بأي انقطاع بين الصفحات.",
+    defaultDailyAmount: DailyAmount.ONE_PAGE,
+    dailyPaceText: "وجه يومياً بعد تصحيح القراءة والأداء",
+    defaultFixationReps: 25,
+    fixationText: "تثبيت الورد 25 تكراراً متقناً",
+    nearReviewPagesCount: 20,
+    nearReviewText: "كامل الجزء الحالي المحفوظ فيه (حتى 20 صفحة)",
+    distantReviewDailyAmount: 40,
+    distantReviewText: "سرد جزأين كاملين (40 صفحة) يومياً من الأجزاء المكتملة",
+    recitationText: "تسميع غيبي متصل في حلقة الإقراء",
+    color: "teal",
+    iconType: "compass",
+  },
+  {
+    id: "al_hifdh_al_mutqan",
+    category: "popular",
+    title: "طريقة الحفظ المتقن (الـ 30 تكراراً وربط الخمس)",
+    badge: "طريقة هندسية للرسوخ السريع وحفظ المتشابهات",
+    tag: "مطبقة وناجحة لآلاف الحفاظ",
+    shortDesc: "طريقة الـ 30 تكراراً المجربة: صفحة حفظ يومية، 30 تكراراً متتالياً، مراجعة آخر 5 صفحات مكررة 3x (قريب)، وسرد جزء يومياً (بعيد).",
+    fullDesc: "طريقة حديثة مبنية على القواعد الذهبية لعلماء الضبط والإتقان: تخصص صفحة واحدة يومياً، تُكرر 30 مرة بنبرة متصلة حتى تنطبع في الذاكرة البصرية، ويتم ربطها بآخر 5 صفحات تم حفظها بتكرارها 3 مرات (حزب الربط)، مع مراجعة جزء كامل يومياً من المحفوظ القديم ليبقى القرآن غضاً طرياً.",
+    methodologyTip: "التكرار الثلاثيني يثبت أرقام الآيات ورؤوس المقاطع ومواضع المتشابهات في ذهن الحافظ تلقائياً.",
+    defaultDailyAmount: DailyAmount.ONE_PAGE,
+    dailyPaceText: "صفحة واحدة يومياً",
+    defaultFixationReps: 30,
+    fixationText: "30 تكراراً متتالياً بنبرة ترتيل متصلة",
+    nearReviewPagesCount: 5,
+    nearReviewText: "آخر 5 صفحات مكررة 3 مرات يومياً",
+    distantReviewDailyAmount: 20,
+    distantReviewText: "سرد جزء كامل (20 صفحة) يومياً من الأرشيف القديم",
+    recitationText: "تسميع متصل للصفحة الجديدة مع آخر 5 صفحات",
+    color: "indigo",
+    iconType: "sparkles",
+  },
+  {
+    id: "moroccan_memorization",
+    category: "traditional_mahadir",
+    title: "المنهج المغربي الأندلسي العتيق (التكرار وسلكة القريب)",
+    badge: "الرسم العثماني والضبط وسلكة الألواح العريقة",
+    tag: "التقليد المغربي الأندلسي",
+    shortDesc: "المنهج العتيق في كتاتيب المغرب والأندلس: حفظ متأنٍ، تثبيت 40 مرة، سلكة القريب (حزب كامل يومياً)، وسلكة البعيد (جزء كامل بالراتب).",
+    fullDesc: "المنهج القرآني العتيق المعمول به في كتاتيب وزوايا المغرب والأندلس منذ قرون: يعتمد على ضبط الحفظ بالرسم والتكرار 40 مرة، ومداومة (سلكة القريب) وهي قراءة الحزب الأخير كاملاً كل يوم لربطه، مع مداومة (سلكة البعيد) عبر قراءة الراتب اليومي (حزبان = جزء كامل) من سائر المحفوظ القديم.",
+    methodologyTip: "الجمع بين سلكة القريب وسلكة الراتب القديم يورث الحافظ تمكناً عجيباً من استحضار أي آية دون تردد.",
+    defaultDailyAmount: DailyAmount.HALF_PAGE,
+    dailyPaceText: "نصف صفحة إلى ثمن حزب يومياً بتمهل وإتقان",
+    defaultFixationReps: 40,
+    fixationText: "تكرار متصل 40 مرة مع استحضار الرسم",
+    nearReviewPagesCount: 10,
+    nearReviewText: "سلكة القريب (حزب كامل = 10 صفحات يومياً)",
+    distantReviewDailyAmount: 20,
+    distantReviewText: "سلكة البعيد والراتب (حزبان = جزء كامل يومياً)",
+    recitationText: "استظهار وسرد يومي متصل",
+    color: "purple",
+    iconType: "award",
+  },
+  {
+    id: "intensive_memorizer",
+    category: "intensive",
+    title: "برنامج الحفاظ المفرغين المكثف (خطة الصفحتين)",
+    badge: "للهمم العالية والمراكز القرآنية والدورات الصيفية",
+    tag: "برنامج مكثف معتمد",
+    shortDesc: "برنامج أصحاب الهمم العالية: حفظ صفحتين يومياً، تثبيت كل صفحة 20 مرة، مراجعة آخر 20 صفحة (قريب)، ومراجعة جزأين يومياً (بعيد).",
+    fullDesc: "البرنامج المخصص للطلاب المفرغين والمشاركين في الدورات الصيفية ومعاهد التحفيظ المكثفة لإتمام ختم القرآن في أقل من سنة مع المحافظة على أعلى معايير الإتقان؛ حفظ صفحتين كاملتين يومياً بتثبيت 20 تكراراً لكل صفحة، مراجعة آخر جزء محفوظ (20 صفحة) يومياً، وسرد جزأين كاملين يومياً من المحفوظ القديم.",
+    methodologyTip: "يتطلب هذا البرنامج تخصيص 2 إلى 3 ساعات يومياً مقسمة بين الفجر والعصر والمساء لضمان استيعاب الصفحتين ومراجعة الجزأين.",
+    defaultDailyAmount: DailyAmount.TWO_PAGES,
+    dailyPaceText: "صفحتان كاملتان يومياً (ختم المصحف في 10 أشهر)",
+    defaultFixationReps: 20,
+    fixationText: "تثبيت 20 تكراراً لكل صفحة على حدة",
+    nearReviewPagesCount: 20,
+    nearReviewText: "آخر 20 صفحة تم حفظها (جزء كامل يومياً)",
+    distantReviewDailyAmount: 40,
+    distantReviewText: "سرد جزأين كاملين (40 صفحة) يومياً من المحفوظ القديم",
+    recitationText: "تسميع يومي متصل للصفحتين مع الجزء القريب",
+    color: "rose",
+    iconType: "flame",
+  },
+];
