@@ -26,6 +26,7 @@ import {
   SURAH_METADATAList
 } from '../../utils/quranPageMapping';
 import { getVersesRangeText } from '../../utils/offlineQuranData';
+import { AyahShareModal, AyahShareTarget } from './AyahShareModal';
 import { unlockOrientation } from '../../utils/orientation';
 import { useAudio } from '../../context/AudioContext';
 import { JUZ_PAGES } from '../../utils/planGenerator';
@@ -36,7 +37,12 @@ import {
   getAyahSegmentsForPage,
   filterSegmentsForTask,
   computeLineHighlightRects,
-  AyahSegment
+  AyahSegment,
+  getSurahNumberByName,
+  FRAME_FIRST_LINE_PEAK_Y,
+  PAGE_FIRST_LINE_PEAK_Y,
+  FRAME_LINE_STEP_Y,
+  PAGE_LINE_STEP_Y
 } from '../../utils/mushafAyahSegments';
 
 // In-memory cache for Quran.com words
@@ -665,6 +671,8 @@ export function QuranViewer({
     endAyah: number;
   } | null>(null);
 
+  const [shareModalTarget, setShareModalTarget] = useState<AyahShareTarget | null>(null);
+
   const pageContainerRef = useRef<HTMLDivElement>(null);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   const pointerStartPosRef = useRef<{ x: number; y: number } | null>(null);
@@ -678,52 +686,103 @@ export function QuranViewer({
 
   const findAyahAtCoordinates = useCallback(
     (svgX: number, svgY: number): { surah: number; ayah: number } | null => {
-      if (!pageSegments || pageSegments.length === 0) return null;
+      // 1. Check loaded pageSegments (high precision word/ayah bounds)
+      if (pageSegments && pageSegments.length > 0) {
+        // Direct segment match with generous bounding box (+24px vertically, +20px horizontally)
+        for (const seg of pageSegments) {
+          const [s, a, , x1, x2, y1, y2] = seg;
+          if (svgY >= y1 - 24 && svgY <= y2 + 24 && svgX >= Math.min(x1, x2) - 20 && svgX <= Math.max(x1, x2) + 20) {
+            return { surah: s, ayah: a };
+          }
+        }
 
-      // 1. Direct hit inside segment boundary with generous cushion
-      for (const seg of pageSegments) {
-        const [s, a, , x1, x2, y1, y2] = seg;
-        if (svgY >= y1 - 12 && svgY <= y2 + 12 && svgX >= x1 - 15 && svgX <= x2 + 15) {
-          return { surah: s, ayah: a };
+        // Proximity line match
+        let closestLine = -1;
+        let minLineDist = Infinity;
+        for (const seg of pageSegments) {
+          const [, , line, , , y1, y2] = seg;
+          const lineCenterY = (y1 + y2) / 2;
+          const distY = Math.abs(svgY - lineCenterY);
+          if (distY < minLineDist) {
+            minLineDist = distY;
+            closestLine = line;
+          }
+        }
+
+        if (closestLine !== -1 && minLineDist < 120) {
+          const lineSegs = pageSegments.filter(s => s[2] === closestLine);
+          if (lineSegs.length > 0) {
+            // Check if within x-bounds of any segment on this line
+            for (const seg of lineSegs) {
+              const [, , , x1, x2] = seg;
+              const minX = Math.min(x1, x2);
+              const maxX = Math.max(x1, x2);
+              if (svgX >= minX - 15 && svgX <= maxX + 15) {
+                return { surah: seg[0], ayah: seg[1] };
+              }
+            }
+            // If between or near segments on this line, find closest by X
+            let bestSeg = lineSegs[0];
+            let bestDistX = Infinity;
+            for (const seg of lineSegs) {
+              const [, , , x1, x2] = seg;
+              const minX = Math.min(x1, x2);
+              const maxX = Math.max(x1, x2);
+              const distX = svgX < minX ? minX - svgX : svgX > maxX ? svgX - maxX : 0;
+              if (distX < bestDistX) {
+                bestDistX = distX;
+                bestSeg = seg;
+              }
+            }
+            if (bestSeg) {
+              return { surah: bestSeg[0], ayah: bestSeg[1] };
+            }
+          }
         }
       }
 
-      // 2. Line proximity hit: find closest line by vertical distance
-      let closestLine = -1;
-      let minLineDist = Infinity;
-      for (const seg of pageSegments) {
-        const [, , line, , , y1, y2] = seg;
-        const lineCenterY = (y1 + y2) / 2;
-        const distY = Math.abs(svgY - lineCenterY);
-        if (distY < minLineDist) {
-          minLineDist = distY;
-          closestLine = line;
+      // 2. Direct Geometric Line-to-Ayah Mapping Fallback
+      // Guaranteed to resolve an ayah on the current page even if words API failed or offline
+      const pageRanges = getVerseRangeForPage(currentPage);
+      if (pageRanges && pageRanges.length > 0) {
+        // Collect all verses on this page in reading order
+        const allVerses: { surah: number; ayah: number }[] = [];
+        for (const r of pageRanges) {
+          const sNum = typeof r.surah === 'number'
+            ? r.surah
+            : (typeof r.surah === 'string' && /^\d+$/.test(r.surah))
+            ? parseInt(r.surah, 10)
+            : getSurahNumberByName(r.surah);
+          for (let v = r.start; v <= r.end; v++) {
+            allVerses.push({ surah: sNum, ayah: v });
+          }
         }
-      }
 
-      if (closestLine !== -1 && minLineDist < 75) {
-        const lineSegs = pageSegments.filter(s => s[2] === closestLine);
-        let bestSeg = lineSegs[0];
-        let bestDistX = Infinity;
-        for (const seg of lineSegs) {
-          const [, , , x1, x2] = seg;
-          if (svgX >= x1 && svgX <= x2) {
-            return { surah: seg[0], ayah: seg[1] };
+        if (allVerses.length > 0) {
+          // If only 1 ayah on page (e.g. Ayat Al-Kursi or long ayah)
+          if (allVerses.length === 1) {
+            return allVerses[0];
           }
-          const distX = svgX < x1 ? x1 - svgX : svgX - x2;
-          if (distX < bestDistX) {
-            bestDistX = distX;
-            bestSeg = seg;
-          }
-        }
-        if (bestSeg) {
-          return { surah: bestSeg[0], ayah: bestSeg[1] };
+
+          // Compute normalized line position (1 to 15, or 1 to 7 for pages 1-2)
+          const totalLines = currentPage <= 2 ? 7 : 15;
+          const firstPeakY = currentPage <= 2 ? FRAME_FIRST_LINE_PEAK_Y : PAGE_FIRST_LINE_PEAK_Y;
+          const stepY = currentPage <= 2 ? FRAME_LINE_STEP_Y : PAGE_LINE_STEP_Y;
+
+          // Estimate line index based on Y coordinate
+          let estimatedLine = Math.round((svgY - firstPeakY) / stepY) + 1;
+          estimatedLine = Math.max(1, Math.min(totalLines, estimatedLine));
+
+          // Map line to verse index proportionally
+          const lineFraction = (estimatedLine - 0.5) / totalLines;
+          const verseIndex = Math.min(allVerses.length - 1, Math.max(0, Math.floor(lineFraction * allVerses.length)));
+          return allVerses[verseIndex];
         }
       }
 
       return null;
     },
-    [pageSegments]
+    [pageSegments, currentPage]
   );
 
   const startLongPress = (clientX: number, clientY: number) => {
@@ -732,10 +791,11 @@ export function QuranViewer({
     if (longPressTimerRef.current) {
       clearTimeout(longPressTimerRef.current);
     }
+    // 380ms response window for responsive touch
     longPressTimerRef.current = setTimeout(() => {
       wasLongPressTriggeredRef.current = true;
       triggerSelectionAt(clientX, clientY);
-    }, 450);
+    }, 380);
   };
 
   const cancelLongPress = () => {
@@ -755,7 +815,7 @@ export function QuranViewer({
     if (!hit) return;
 
     try {
-      if (navigator.vibrate) navigator.vibrate(40);
+      if (navigator.vibrate) navigator.vibrate(50);
     } catch {}
 
     const meta = SURAH_METADATAList[hit.surah - 1];
@@ -792,7 +852,8 @@ export function QuranViewer({
       e.clientX - pointerStartPosRef.current.x,
       e.clientY - pointerStartPosRef.current.y
     );
-    if (dist > 12) {
+    // Allow natural finger jitter up to 22px without cancelling the selection hold
+    if (dist > 22) {
       cancelLongPress();
     }
   };
@@ -839,45 +900,15 @@ export function QuranViewer({
     );
   };
 
-  const handleShareSelectedRange = async () => {
+  const handleShareSelectedRange = () => {
     if (!selectedRange) return;
-    try {
-      const text = await getVersesRangeText(
-        selectedRange.surah,
-        selectedRange.startAyah,
-        selectedRange.endAyah
-      );
-      const isSingle = selectedRange.startAyah === selectedRange.endAyah;
-      const ayahLabel = isSingle
-        ? `الآية ${selectedRange.startAyah}`
-        : `الآيات ${selectedRange.startAyah} - ${selectedRange.endAyah}`;
-
-      const shareContent = `قال تعالى:\n﴿ ${text || ''} ﴾\n[سورة ${selectedRange.surahName} : ${ayahLabel}]`;
-
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(shareContent);
-      }
-
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: `سورة ${selectedRange.surahName} (${ayahLabel})`,
-            text: shareContent
-          });
-        } catch (shareErr: any) {
-          if (shareErr.name !== 'AbortError') {
-            console.warn('Share error:', shareErr);
-          }
-        }
-      }
-
-      setToastMessage(`تم نسخ نص ${ayahLabel} وجاهز للمشاركة 📋`);
-      setTimeout(() => setToastMessage(null), 3200);
-    } catch (err) {
-      console.error('Share failure:', err);
-      setToastMessage('تعذر نسخ نص الآية للمشاركة');
-      setTimeout(() => setToastMessage(null), 3000);
-    }
+    setShareModalTarget({
+      surah: selectedRange.surah,
+      surahName: selectedRange.surahName,
+      startAyah: selectedRange.startAyah,
+      endAyah: selectedRange.endAyah,
+      page: currentPage
+    });
   };
 
   // Page Swiping gesture & Navigation
@@ -934,7 +965,8 @@ export function QuranViewer({
     const deltaY = currentY - touchStartRef.current.y;
     const dist = Math.hypot(deltaX, deltaY);
 
-    if (dist > 8 && Math.abs(deltaX) > Math.abs(deltaY) * 0.8) {
+    // Only initiate swipe drag when horizontal distance clearly exceeds micro-movement jitter (18px)
+    if (dist > 18 && Math.abs(deltaX) > 16 && Math.abs(deltaX) > Math.abs(deltaY) * 1.1) {
       isSwipingRef.current = true;
       setIsDragging(true);
       // Interactive translation bounded to 160px for natural spring feel
@@ -1051,21 +1083,29 @@ export function QuranViewer({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, goToNextPage, goToPrevPage]);
 
+  // مؤثرات حركة تقليب الصفحات الواقعية المتناغمة مع اتجاه التمرير:
+  // - عند الانتقال للصفحة التالية (swipeDirection = 1 / التمرير من اليسار إلى اليمين):
+  //   الصفحة القديمة تتحرك لليمين (x: > 0) لتكشف عن الصفحة التالية القادمة من اليسار (x: < 0) كما في التمرير الواقعي.
+  // - عند الرجوع للصفحة السابقة (swipeDirection = -1 / التمرير من اليمين إلى اليسار):
+  //   الصفحة القديمة تتحرك لليسار (x: < 0) وتأتي الصفحة السابقة من اليمين (x: > 0).
   const pageVariants = {
     enter: (direction: number) => ({
-      x: direction > 0 ? 90 : -90,
-      opacity: 0,
-      scale: 0.98
+      x: direction > 0 ? '-100%' : '100%',
+      opacity: 0.85,
+      scale: 0.98,
+      boxShadow: direction > 0 ? '15px 0 30px rgba(0,0,0,0.18)' : '-15px 0 30px rgba(0,0,0,0.18)'
     }),
     center: {
       x: 0,
       opacity: 1,
-      scale: 1
+      scale: 1,
+      boxShadow: '0 0 0 rgba(0,0,0,0)'
     },
     exit: (direction: number) => ({
-      x: direction > 0 ? -90 : 90,
-      opacity: 0,
-      scale: 0.98
+      x: direction > 0 ? '100%' : '-100%',
+      opacity: 0.85,
+      scale: 0.98,
+      boxShadow: direction > 0 ? '15px 0 30px rgba(0,0,0,0.18)' : '-15px 0 30px rgba(0,0,0,0.18)'
     })
   };
 
@@ -1148,9 +1188,10 @@ export function QuranViewer({
               x: dragOffset
             }}
             transition={{
-              x: { duration: 0.22, ease: [0.25, 1, 0.5, 1] },
-              opacity: { duration: 0.18 },
-              scale: { duration: 0.18 }
+              x: { type: 'spring', stiffness: 280, damping: 28, mass: 0.8 },
+              opacity: { duration: 0.22, ease: 'easeInOut' },
+              scale: { duration: 0.22, ease: 'easeOut' },
+              boxShadow: { duration: 0.22 }
             }}
             className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden"
           >
@@ -1581,6 +1622,13 @@ export function QuranViewer({
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* 4-Way Verses Share Modal: Text, Audio, Image, Video */}
+      <AyahShareModal
+        isOpen={!!shareModalTarget}
+        onClose={() => setShareModalTarget(null)}
+        target={shareModalTarget}
+      />
     </motion.div>
   );
 }

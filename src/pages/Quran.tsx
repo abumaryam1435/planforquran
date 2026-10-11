@@ -14,7 +14,8 @@ import {
   Trash2,
   Download,
   Wifi,
-  WifiOff
+  WifiOff,
+  Share2
 } from 'lucide-react';
 import { SURAH_METADATAList } from '../utils/quranPageMapping';
 import { QURAN_QUARTERS } from '../utils/quranQuarters';
@@ -24,6 +25,7 @@ import { SearchableSurahSelect } from '../components/ui/SearchableSurahSelect';
 import { SearchableNumberSelect } from '../components/ui/SearchableNumberSelect';
 import { PWAInstallButton } from '../components/ui/PWAInstallButton';
 import { OfflineDownloadModal } from '../components/ui/OfflineDownloadModal';
+import { AyahShareModal, AyahShareTarget } from '../components/ui/AyahShareModal';
 
 type TabType = 'read' | 'listen' | 'search';
 type ReadFilterType = 'full' | 'surah' | 'juz' | 'hizb';
@@ -34,6 +36,7 @@ export default function Quran() {
   const [readFilter, setReadFilter] = useState<ReadFilterType>('surah');
   
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [shareModalTarget, setShareModalTarget] = useState<AyahShareTarget | null>(null);
   const [quranData, setQuranData] = useState<any[] | null>(null);
   const [dbLoadingState, setDbLoadingState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [dbErrorMsg, setDbErrorMsg] = useState<string | null>(null);
@@ -644,6 +647,23 @@ export default function Quran() {
                     <div key={idx} onClick={() => openSearchResult(result)} className="p-4 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/10 hover:border-[#D4AF37]/50 cursor-pointer transition-colors group">
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-xs font-bold text-[#D4AF37]">سورة {result.surah.name} • الآية {result.numberInSurah}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShareModalTarget({
+                              surah: result.surah.number,
+                              surahName: result.surah.name,
+                              startAyah: result.numberInSurah,
+                              endAyah: result.numberInSurah
+                            });
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-amber-500/20 text-gray-400 hover:text-amber-500 transition-colors flex items-center gap-1 text-[11px] font-bold"
+                          title="مشاركة الآية (نص، صوت، صورة، فيديو)"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                          <span>مشاركة</span>
+                        </button>
                       </div>
                       <p className="font-amiri text-lg leading-loose text-gray-800 dark:text-gray-200 text-right" dangerouslySetInnerHTML={{
                         __html: (() => {
@@ -729,6 +749,12 @@ export default function Quran() {
       <OfflineDownloadModal
         isOpen={downloadModalOpen}
         onClose={() => setDownloadModalOpen(false)}
+      />
+
+      <AyahShareModal
+        isOpen={!!shareModalTarget}
+        onClose={() => setShareModalTarget(null)}
+        target={shareModalTarget}
       />
     </div>
   );
