@@ -909,9 +909,10 @@ export function QuranViewer({
     }
   }, [effectivePageIndex]);
 
-  // Gestures for Touch Screens (Mobile):
-  // السحب نحو اليسار (deltaX < 0) -> الانتقال للصفحة التالية (تصفح مصحف عربي من اليمين لليسار)
-  // السحب نحو اليمين (deltaX > 0) -> الرجوع للصفحة السابقة
+  // Gestures for Touch Screens (Mobile) & Mouse:
+  // طلب المستخدم الصريح: "عند التمرير باللمس من اليسار إلى اليمين يجب أن تظهر الصفحة التالية، والعكس صحيح"
+  // التمرير من اليسار إلى اليمين (deltaX > 0) -> الانتقال للصفحة التالية
+  // التمرير من اليمين إلى اليسار (deltaX < 0) -> الرجوع للصفحة السابقة
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 1) {
       touchStartRef.current = {
@@ -968,12 +969,12 @@ export function QuranViewer({
     const isStandardSwipe = Math.abs(deltaX) > 35 && deltaTime < 750;
 
     if ((isStandardSwipe || isQuickFlick) && Math.abs(deltaX) > Math.abs(deltaY) * 0.8) {
-      // السحب لليسار: الانتقال للصفحة التالية في المصحف الشريف
-      if (deltaX < 0) {
+      // تمرير من اليسار إلى اليمين (deltaX > 0): إظهار الصفحة التالية
+      if (deltaX > 0) {
         goToNextPage();
       }
-      // السحب لليمين: العودة للصفحة السابقة
-      else if (deltaX > 0) {
+      // تمرير من اليمين إلى اليسار (deltaX < 0): إظهار الصفحة السابقة
+      else if (deltaX < 0) {
         goToPrevPage();
       }
     }
@@ -1025,9 +1026,11 @@ export function QuranViewer({
     }
 
     if (Math.abs(deltaX) > 40 && Math.abs(deltaX) > Math.abs(deltaY) * 0.8 && deltaTime < 700) {
-      if (deltaX < 0) {
+      // سحب من اليسار إلى اليمين: الصفحة التالية
+      if (deltaX > 0) {
         goToNextPage();
-      } else if (deltaX > 0) {
+      } else if (deltaX < 0) {
+        // سحب من اليمين إلى اليسار: الصفحة السابقة
         goToPrevPage();
       }
     }
@@ -1038,9 +1041,9 @@ export function QuranViewer({
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (['INPUT', 'TEXTAREA', 'SELECT'].includes((e.target as HTMLElement)?.tagName)) return;
-      if (e.key === 'ArrowLeft') {
+      if (e.key === 'ArrowRight') {
         goToNextPage();
-      } else if (e.key === 'ArrowRight') {
+      } else if (e.key === 'ArrowLeft') {
         goToPrevPage();
       }
     };
@@ -1050,7 +1053,7 @@ export function QuranViewer({
 
   const pageVariants = {
     enter: (direction: number) => ({
-      x: direction > 0 ? -90 : 90,
+      x: direction > 0 ? 90 : -90,
       opacity: 0,
       scale: 0.98
     }),
@@ -1060,7 +1063,7 @@ export function QuranViewer({
       scale: 1
     },
     exit: (direction: number) => ({
-      x: direction > 0 ? 90 : -90,
+      x: direction > 0 ? -90 : 90,
       opacity: 0,
       scale: 0.98
     })
@@ -1111,13 +1114,13 @@ export function QuranViewer({
           }
           const clickX = e.clientX;
           const windowW = window.innerWidth;
-          // Left 18% of screen -> Next page
-          if (clickX < windowW * 0.18) {
+          // Right 20% of screen -> Next page
+          if (clickX > windowW * 0.80) {
             goToNextPage();
             return;
           }
-          // Right 18% of screen -> Previous page
-          if (clickX > windowW * 0.82) {
+          // Left 20% of screen -> Previous page
+          if (clickX < windowW * 0.20) {
             goToPrevPage();
             return;
           }
