@@ -1,0 +1,1213 @@
+  const exportPDF = async (isCastleTowerStyle: boolean = false, shouldPrintDirectly: boolean = false) => {
+    if (!activePlan) return;
+
+    const setIsExporting = isCastleTowerStyle
+      ? setIsExportingCastle
+      : setIsExportingClassic;
+    const setExportProgress = isCastleTowerStyle
+      ? setExportProgressCastle
+      : setExportProgressClassic;
+    const setIsPrinting = isCastleTowerStyle
+      ? setIsPrintingCastle
+      : setIsPrintingClassic;
+
+    setIsExporting(true);
+    if (shouldPrintDirectly) {
+      setIsPrinting(true);
+    }
+    setExportProgress("جاري تحضير خطة الحفظ لمستند PDF...");
+
+    // Allow React state updates to render in the browser immediately to provide instant visual feedback
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    const getCastleIndexFromTaskTitle = (title: string): number | null => {
+      if (title.includes("القلعة الأولى") || title.includes("القلعة 1"))
+        return 0;
+      if (title.includes("القلعة الثانية") || title.includes("القلعة 2"))
+        return 1;
+      if (title.includes("القلعة الثالثة") || title.includes("القلعة 3"))
+        return 2;
+      if (title.includes("القلعة الرابعة") || title.includes("القلعة 4"))
+        return 3;
+      if (title.includes("القلعة الخامسة") || title.includes("القلعة 5"))
+        return 4;
+      if (title.includes("القلعة السادسة") || title.includes("القلعة 6"))
+        return 5;
+      if (title.includes("القلعة السابعة") || title.includes("القلعة 7"))
+        return 6;
+      return null;
+    };
+
+    const getArabicDayName = (date: Date): string => {
+      const days = [
+        "الأحد",
+        "الإثنين",
+        "الثلاثاء",
+        "الأربعاء",
+        "الخميس",
+        "الجمعة",
+        "السبت",
+      ];
+      return days[date.getDay()];
+    };
+
+    const getCastleIdxForDate = (date: Date) => {
+      const planStart = new Date(activePlan.startDate);
+      planStart.setHours(0, 0, 0, 0);
+      const targetDate = new Date(date);
+      targetDate.setHours(0, 0, 0, 0);
+
+      const daysDiff = differenceInCalendarDays(targetDate, planStart);
+      if (daysDiff < 0) return 0;
+
+      const weekIdx = Math.floor(daysDiff / 7);
+      const d_week =
+        (targetDate.getDay() - (activePlan.firstDayOfWeek || 0) + 7) % 7;
+
+      let memDay = 1;
+      if (d_week === 0) {
+        memDay = weekIdx * 4 + 1;
+      } else if (d_week === 1) {
+        memDay = weekIdx * 4 + 2;
+      } else if (d_week === 2) {
+        memDay = weekIdx * 4 + 1; // Align with Day 1 & 2
+      } else if (d_week === 3) {
+        memDay = weekIdx * 4 + 3;
+      } else if (d_week === 4) {
+        memDay = weekIdx * 4 + 4;
+      } else if (d_week === 5) {
+        memDay = weekIdx * 4 + 3; // Align with Day 3 & 4
+      } else if (d_week === 6) {
+        memDay = weekIdx * 4 + 4; // Align with Day 4
+      }
+
+      const castleIdx = Math.floor((memDay - 1) / 6);
+      return Math.min(Math.max(castleIdx, 0), 6);
+    };
+
+    try {
+      const fullData = generateFullPlan();
+      const chunks: any[][] = [];
+      let currentWeek: any[] = [];
+
+      const endOfWeekDay = ((activePlan.firstDayOfWeek || 0) + 6) % 7;
+
+      // Group by weeks ending on the day before firstDayOfWeek
+      fullData.forEach((day: any) => {
+        currentWeek.push(day);
+        if (day.date.getDay() === endOfWeekDay) {
+          chunks.push(currentWeek);
+          currentWeek = [];
+        }
+      });
+
+      if (currentWeek.length > 0) {
+        chunks.push(currentWeek);
+      }
+
+      const pdf = isCastleTowerStyle
+        ? new jsPDF("l", "mm", "a4")
+        : new jsPDF("p", "mm", "a4");
+
+      const tempContainer = document.createElement("div");
+      tempContainer.style.position = "fixed";
+      tempContainer.style.left = "0";
+      tempContainer.style.top = "0";
+      tempContainer.style.width = isCastleTowerStyle ? "1123px" : "794px";
+      tempContainer.style.height = "auto";
+      tempContainer.style.overflow = "visible";
+      tempContainer.style.zIndex = "-9999";
+      tempContainer.style.pointerEvents = "none";
+      tempContainer.dir = "rtl";
+      document.body.appendChild(tempContainer);
+
+      // Add dynamic styles to force the Cairo font and normal letter-spacing for perfect Arabic rendering
+      const tempStyle = document.createElement("style");
+      tempStyle.textContent = `
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap');
+        * {
+          font-family: 'Cairo', sans-serif !important;
+          letter-spacing: normal !important;
+          word-spacing: normal !important;
+          -webkit-font-smoothing: antialiased !important;
+          -moz-osx-font-smoothing: grayscale !important;
+          text-rendering: optimizeLegibility !important;
+        }
+      `;
+      tempContainer.appendChild(tempStyle);
+
+      // Await all typography loading to guarantee connected Arabic letters inside canvas export
+      try {
+        if ("fonts" in document) {
+          await document.fonts.ready;
+        }
+      } catch (fontErr) {
+        console.warn("Failed waiting for page fonts to load", fontErr);
+      }
+
+      // Concurrently create and mount all separate page containers onto the DOM first
+      const pageElements: HTMLDivElement[] = [];
+
+      // --- CREATE COVER PAGE ---
+      const getJuzForPage = (p: number): number => {
+        for (let j = 1; j <= 30; j++) {
+          const range = JUZ_PAGES[j];
+          if (range && p >= range.start && p <= range.end) {
+            return j;
+          }
+        }
+        return 1;
+      };
+
+      const getJuzsFromPages = (pages: number[]): number[] => {
+        if (!pages || pages.length === 0) return [];
+        const juzs = new Set<number>();
+        pages.forEach(p => {
+          const juz = getJuzForPage(p);
+          juzs.add(juz);
+        });
+        return Array.from(juzs).sort((a, b) => a - b);
+      };
+
+      let planTypeName = "خطة حفظ القرآن الكريم";
+      if (activePlan.isSevenCastles) {
+        planTypeName = "خطة القلاع السبع للتمكين";
+      } else if (activePlan.planType === "review") {
+        planTypeName = "خطة مراجعة وتثبيت";
+      } else if (activePlan.planType === "juz") {
+        planTypeName = "خطة حفظ الأجزاء";
+      } else if (activePlan.planType === "flexible") {
+        planTypeName = "خطة الحفظ المرنة";
+      }
+
+      const startJuzNum = activePlan.juzNumber || getJuzForPage(activePlan.startPage || 1);
+      const newMemText = activePlan.planType === 'review' ? 'لا يوجد (خطة مراجعة فقط)' : `يبدأ من جزء ${startJuzNum}`;
+
+      let oldMemText = "لا يوجد";
+      if (activePlan.planType === 'review') {
+        if (activePlan.isSpecificReview) {
+          if (activePlan.selectedReviewSurahs && activePlan.selectedReviewSurahs.length > 0) {
+            oldMemText = `السور: ${activePlan.selectedReviewSurahs.join('، ')}`;
+          } else if (activePlan.selectedReviewJuzs && activePlan.selectedReviewJuzs.length > 0) {
+            oldMemText = `الأجزاء: ${activePlan.selectedReviewJuzs.sort((a, b) => a - b).join('، ')}`;
+          } else {
+            oldMemText = "مراجعة مخصصة";
+          }
+        } else {
+          oldMemText = "كامل القرآن الكريم";
+        }
+      } else if (activePlan.hasOldMemorization && activePlan.oldMemorizedPages && activePlan.oldMemorizedPages.length > 0) {
+        if (activePlan.oldMemType === 'surah' && activePlan.oldMemSurahs && activePlan.oldMemSurahs.length > 0) {
+          oldMemText = `السور: ${activePlan.oldMemSurahs.join('، ')}`;
+        } else {
+          const juzs = getJuzsFromPages(activePlan.oldMemorizedPages);
+          oldMemText = `الأجزاء: ${juzs.join('، ')}`;
+        }
+      }
+
+      const planWeeks = chunks.length;
+      const formatWeeksArabic = (weeks: number): string => {
+        if (weeks === 1) return "أسبوع واحد";
+        if (weeks === 2) return "أسبوعان";
+        if (weeks >= 3 && weeks <= 10) return `${weeks} أسابيع`;
+        return `${weeks} أسبوعاً`;
+      };
+      const durationText = formatWeeksArabic(planWeeks);
+
+      const startDateStr = format(new Date(fullData[0].date), "yyyy/MM/dd");
+      const endDateStr = format(new Date(fullData[fullData.length - 1].date), "yyyy/MM/dd");
+      const startHijriStr = getHijriDate(new Date(fullData[0].date));
+      const endHijriStr = getHijriDate(new Date(fullData[fullData.length - 1].date));
+
+      const coverEl = document.createElement("div");
+      coverEl.style.width = isCastleTowerStyle ? "1123px" : "794px";
+      coverEl.style.boxSizing = "border-box";
+      coverEl.style.marginBottom = "30px";
+
+      if (isCastleTowerStyle) {
+        coverEl.innerHTML = `
+          <div style="padding: 60px 80px; background: #FFFDF9; width: 1123px; height: 794px; box-sizing: border-box; font-family: 'Cairo', sans-serif; display: flex; flex-direction: column; justify-content: space-between; direction: rtl; position: relative; border: 12px double #1A2E1A; text-align: center;">
+            <div style="font-size: 24px; color: #D4AF37; margin-bottom: 10px;">❖ ═══════════ ❖ ═══════════ ❖</div>
+            
+            <div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 30px;">
+              <div style="display: flex; justify-content: center; align-items: center; width: 100px; height: 100px; background: #ffffff; border-radius: 20px; border: 2px solid #1A2E1A20; overflow: hidden; padding: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+                <img src="/app_icon_v6.png" style="width: 100%; height: 100%; object-fit: contain; border-radius: 12px;" alt="شعار التطبيق" />
+              </div>
+
+              <div>
+                <h1 style="font-size: 38px; font-weight: 900; color: #1A2E1A; margin: 0; line-height: 1.3;">${planTypeName}</h1>
+                <p style="font-size: 18px; color: #D4AF37; font-weight: bold; margin-top: 10px; margin-bottom: 0;">برنامج التمكين المتكامل لحفظ القرآن الكريم وتثبيته</p>
+              </div>
+
+              <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; width: 80%; max-width: 800px; margin-top: 10px; background: #ffffff; border: 2px solid #1A2E1A15; padding: 30px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.02);">
+                <div style="display: flex; align-items: center; gap: 12px; text-align: right; border-bottom: 1px dashed #1A2E1A20; padding-bottom: 15px;">
+                  <span style="font-size: 24px;">🌱</span>
+                  <div>
+                    <div style="font-size: 13px; color: #666; font-weight: bold;">الحفظ الجديد</div>
+                    <div style="font-size: 16px; color: #1A2E1A; font-weight: 800; margin-top: 3px;">${newMemText}</div>
+                  </div>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 12px; text-align: right; border-bottom: 1px dashed #1A2E1A20; padding-bottom: 15px;">
+                  <span style="font-size: 24px;">📖</span>
+                  <div>
+                    <div style="font-size: 13px; color: #666; font-weight: bold;">الحفظ القديم / المراجعة</div>
+                    <div style="font-size: 16px; color: #1A2E1A; font-weight: 800; margin-top: 3px; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${oldMemText}">${oldMemText}</div>
+                  </div>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 12px; text-align: right; padding-top: 5px;">
+                  <span style="font-size: 24px;">⏳</span>
+                  <div>
+                    <div style="font-size: 13px; color: #666; font-weight: bold;">مدة الخطة</div>
+                    <div style="font-size: 16px; color: #1A2E1A; font-weight: 800; margin-top: 3px;">${durationText}</div>
+                  </div>
+                </div>
+
+                <div style="display: flex; align-items: center; gap: 12px; text-align: right; padding-top: 5px;">
+                  <span style="font-size: 24px;">📅</span>
+                  <div>
+                    <div style="font-size: 13px; color: #666; font-weight: bold;">الفترة الزمنية</div>
+                    <div style="font-size: 14px; color: #1A2E1A; font-weight: 800; margin-top: 3px; line-height: 1.4;">
+                      البداية: ${startHijriStr} (${startDateStr} م)<br/>
+                      النهاية: ${endHijriStr} (${endDateStr} م)
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top: 20px;">
+              <div style="font-size: 24px; color: #D4AF37; margin-bottom: 10px;">❖ ═══════════ ❖ ═══════════ ❖</div>
+              <p style="font-size: 12px; color: #888; margin: 0;">تم استخراج هذه الخطة بواسطة "خطة الحفظ الذكية" - ${new Date().toLocaleDateString("ar-EG")}</p>
+            </div>
+          </div>
+        `;
+      } else {
+        coverEl.innerHTML = `
+          <div style="padding: 80px 60px; background: #FDFBF7; width: 794px; height: 1123px; box-sizing: border-box; font-family: 'Cairo', sans-serif; display: flex; flex-direction: column; justify-content: space-between; direction: rtl; position: relative; border: 4px solid #1A2E1A; text-align: center;">
+            <div style="position: absolute; top: 15px; bottom: 15px; left: 15px; right: 15px; border: 1px solid #D4AF37; pointer-events: none;"></div>
+            <div style="font-size: 22px; color: #D4AF37; margin-top: 20px; margin-bottom: 10px;">❖ ══════════ ❖ ══════════ ❖</div>
+            
+            <div style="flex-grow: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 40px; margin-top: 20px; margin-bottom: 20px;">
+              <div style="display: flex; justify-content: center; align-items: center; width: 100px; height: 100px; background: #ffffff; border-radius: 20px; border: 2px solid #1A2E1A20; overflow: hidden; padding: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.05);">
+                <img src="/app_icon_v6.png" style="width: 100%; height: 100%; object-fit: contain; border-radius: 12px;" alt="شعار التطبيق" />
+              </div>
+
+              <div>
+                <h1 style="font-size: 34px; font-weight: 900; color: #1A2E1A; margin: 0; line-height: 1.4;">${planTypeName}</h1>
+                <p style="font-size: 16px; color: #D4AF37; font-weight: bold; margin-top: 12px; margin-bottom: 0; letter-spacing: 0.5px;">البرنامج المنهجي المنظم لتلاوة وحفظ القرآن الكريم</p>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 18px; width: 85%; margin-top: 10px; background: #ffffff; border: 1.5px solid #1A2E1A15; padding: 35px 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.01);">
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px dashed #E5E7EB; padding-bottom: 12px;">
+                  <span style="font-size: 15px; color: #555; font-weight: bold;">❖ نوع البرنامج المنهجي:</span>
+                  <span style="font-size: 16px; color: #1A2E1A; font-weight: 800;">${planTypeName}</span>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px dashed #E5E7EB; padding-bottom: 12px;">
+                  <span style="font-size: 15px; color: #555; font-weight: bold;">🌱 مقرر الحفظ الجديد:</span>
+                  <span style="font-size: 16px; color: #1A2E1A; font-weight: 800;">${newMemText}</span>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 1.5px dashed #E5E7EB; padding-bottom: 12px;">
+                  <span style="font-size: 15px; color: #555; font-weight: bold; white-space: nowrap; margin-left: 15px;">📖 مقرر الحفظ القديم / المراجعة:</span>
+                  <span style="font-size: 15px; color: #1A2E1A; font-weight: 800; text-align: left; max-width: 250px; line-height: 1.4; overflow-wrap: break-word;">${oldMemText}</span>
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1.5px dashed #E5E7EB; padding-bottom: 12px;">
+                  <span style="font-size: 15px; color: #555; font-weight: bold;">⏳ مدة البرنامج المنهجي:</span>
+                  <span style="font-size: 16px; color: #1A2E1A; font-weight: 800;">${durationText}</span>
+                </div>
+
+                <div style="display: flex; flex-direction: column; gap: 8px; align-items: flex-start; padding-top: 5px; text-align: right;">
+                  <span style="font-size: 15px; color: #555; font-weight: bold; margin-bottom: 4px;">📅 الفترة الزمنية المخصصة:</span>
+                  <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; font-size: 14.5px; color: #1A2E1A; font-weight: 800; padding-right: 15px;">
+                    <span>• تاريخ البدء: ${startHijriStr}</span>
+                    <span style="font-size: 12px; color: #b45309;">(${startDateStr} م)</span>
+                  </div>
+                  <div style="width: 100%; display: flex; justify-content: space-between; align-items: center; font-size: 14.5px; color: #1A2E1A; font-weight: 800; padding-right: 15px; margin-top: 2px;">
+                    <span>• تاريخ الانتهاء: ${endHijriStr}</span>
+                    <span style="font-size: 12px; color: #b45309;">(${endDateStr} م)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-bottom: 20px;">
+              <div style="font-size: 22px; color: #D4AF37; margin-bottom: 10px;">❖ ══════════ ❖ ══════════ ❖</div>
+              <p style="font-size: 12.5px; color: #777; margin: 0; font-weight: 500;">تم استخراج هذه الخطة بواسطة "خطة الحفظ الذكية" - ${new Date().toLocaleDateString("ar-EG")}</p>
+            </div>
+          </div>
+        `;
+      }
+
+      tempContainer.appendChild(coverEl);
+      pageElements.push(coverEl);
+
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i];
+        const pageEl = document.createElement("div");
+        pageEl.style.width = isCastleTowerStyle ? "1123px" : "794px";
+        pageEl.style.boxSizing = "border-box";
+        pageEl.style.marginBottom = "30px";
+
+        if (isCastleTowerStyle) {
+          const overallCastleIdx = getCastleIdxForDate(chunk[0].date);
+          const castleTheme = CASTLES_THEMES[overallCastleIdx];
+
+          const weekStartCastleIdx = getCastleIdxForDate(chunk[0].date);
+          const weekEndCastleIdx = getCastleIdxForDate(
+            chunk[chunk.length - 1].date,
+          );
+          let castleBannerLabel = CASTLES_THEMES[weekStartCastleIdx].name;
+          if (weekStartCastleIdx !== weekEndCastleIdx) {
+            castleBannerLabel = `${CASTLES_THEMES[weekStartCastleIdx].name} و ${CASTLES_THEMES[weekEndCastleIdx].name}`;
+          }
+
+          pageEl.innerHTML = `
+            <div style="padding: 25px 35px; background: #FFFDF9; width: 1123px; height: 794px; box-sizing: border-box; font-family: 'Cairo', sans-serif; display: flex; flex-direction: column; justify-content: space-between; direction: rtl; position: relative; border: 8px double ${castleTheme.color};">
+              <div style="display: flex; justify-content: space-between; align-items: center; height: 75px; border-bottom: 2px solid ${castleTheme.color}; padding-bottom: 10px;">
+                <div style="display: flex; align-items: center; gap: 15px;">
+                  <!-- Castle Icon -->
+                  <svg style="width: 45px; height: 45px; fill: ${castleTheme.color};" viewBox="0 0 24 24">
+                     <path d="M2,22V10l3-3v3h2V6l3-3v3h4V3l3 3v3h2V7l3 3v12H2 M20,20v-8h-2v3h-2v-3h-4v4h-2v-4H6v3H4v-3H2v8H20z" />
+                  </svg>
+                  <div style="text-align: right;">
+                    <h1 style="font-size: 23px; font-weight: 900; color: ${castleTheme.textColor}; margin: 0; font-family: 'Cairo', sans-serif; line-height: 1.2;">منظومة القلاع السبع لحفظ القرآن وتثبيته</h1>
+                    <div style="font-size: 12px; font-weight: bold; color: ${castleTheme.color}; margin-top: 1px; font-family: 'Cairo', sans-serif;">أسلوب التمكين بالبناء التراكمي المتقن</div>
+                  </div>
+                </div>
+                <div style="text-align: left; display: flex; flex-direction: column; align-items: flex-end; gap: 3px;">
+                  <div style="background: ${castleTheme.bannerBg}; border: 1px solid ${castleTheme.color}; color: ${castleTheme.textColor}; font-weight: 800; font-size: 13px; padding: 5px 14px; border-radius: 30px; font-family: 'Cairo', sans-serif;">
+                     ${castleBannerLabel} | الأسبوع رقم ${i + 1}
+                  </div>
+                  <div style="font-size: 11px; color: #777; font-weight: 700; font-family: 'Cairo', sans-serif; margin-left: 5px;">
+                     صفحة برنامج التمكين المتكامل
+                  </div>
+                </div>
+              </div>
+
+              <!-- Columns Wrapper of 7 Days -->
+              <div style="display: flex; gap: 12px; justify-content: space-between; align-items: stretch; width: 100%; margin-top: 15px; flex-grow: 1; height: 580px; box-sizing: border-box;">
+                ${chunk
+                  .map((day) => {
+                    const dayName = getArabicDayName(day.date);
+                    const dayDateStr = format(day.date, "yyyy/MM/dd");
+                    const hijriDateStr = getHijriDate(day.date);
+
+                    const dayCastleIdx = getCastleIdxForDate(day.date);
+                    const dayCastleTheme = CASTLES_THEMES[dayCastleIdx];
+
+                    return `
+                    <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: flex-end; position: relative; height: 100%; box-sizing: border-box;">
+                      <!-- Triangle Tower Roof -->
+                      <div style="width: 100%; height: 32px; position: relative; display: block; overflow: hidden; margin-bottom: -1px; z-index: 2;">
+                        <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width: 100%; height: 100%; display: block;">
+                          <polygon points="50,0 0,100 100,100" fill="${dayCastleTheme.color}" />
+                        </svg>
+                      </div>
+                      
+                      <!-- Rectangular Tower Body -->
+                      <div style="flex-grow: 1; border: 3px solid ${dayCastleTheme.color}; background: #FFFFFF; border-radius: 0 0 16px 16px; padding: 12px 7px; display: flex; flex-direction: column; justify-content: space-between; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.03); z-index: 1; min-height: 480px; box-sizing: border-box;">
+                        
+                        <!-- List of Tasks (Aligned Horizontally) -->
+                        <div style="display: flex; flex-direction: column; gap: 6px; flex-grow: 1; justify-content: flex-start; overflow: hidden;">
+                          ${(() => {
+                            const d_week =
+                              (day.date.getDay() -
+                                (activePlan.firstDayOfWeek || 0) +
+                                7) %
+                              7;
+                            const slots = [null, null, null, null, null] as (
+                              any | null
+                            )[];
+
+                            if (day.tasks && day.tasks.length > 0) {
+                              day.tasks.forEach((t: any) => {
+                                const title = t.title || "";
+                                const type = t.type || "";
+
+                                const isListening = title.includes("استماع");
+                                const isMemorization = title.includes("حفظ");
+                                const isFixation = title.includes("تثبيت");
+                                const isOldReview =
+                                  title.includes("المحفوظ القديم") ||
+                                  title.includes("القديم");
+                                const isCastleRev =
+                                  getCastleIndexFromTaskTitle(title) !== null ||
+                                  title.includes("القلعة");
+                                const isRecitation = title.includes("تسميع");
+                                const isReviewWeek =
+                                  title.includes("مراجعة محفوظ الأسبوع") ||
+                                  (type === "review" &&
+                                    !isCastleRev &&
+                                    !isOldReview);
+
+                                if (
+                                  d_week === 0 ||
+                                  d_week === 1 ||
+                                  d_week === 3 ||
+                                  d_week === 4
+                                ) {
+                                  if (isListening) slots[0] = t;
+                                  else if (isMemorization) slots[1] = t;
+                                  else if (isFixation) slots[2] = t;
+                                  else if (isOldReview) slots[3] = t;
+                                  else if (isCastleRev) slots[4] = t;
+                                } else if (d_week === 2 || d_week === 5) {
+                                  if (isFixation) slots[0] = t;
+                                  else if (isRecitation) slots[1] = t;
+                                  else if (isOldReview) slots[3] = t;
+                                  else if (isCastleRev) slots[4] = t;
+                                } else if (d_week === 6) {
+                                  if (isReviewWeek) slots[0] = t;
+                                  else if (isRecitation) slots[1] = t;
+                                  else if (isOldReview) slots[3] = t;
+                                  else if (isCastleRev) slots[4] = t;
+                                }
+                              });
+
+                              // Safeguard fallback: place any task that wasn't matched into the first empty slot
+                              day.tasks.forEach((t) => {
+                                const alreadyAssigned = slots.some(
+                                  (s) => s && s.id === t.id,
+                                );
+                                if (!alreadyAssigned) {
+                                  const emptyIdx = slots.indexOf(null);
+                                  if (emptyIdx !== -1) {
+                                    slots[emptyIdx] = t;
+                                  }
+                                }
+                              });
+                            }
+
+                            // Render the 5 slots
+                            if (!day.tasks || day.tasks.length === 0) {
+                              // Day of rest
+                              return `
+                              <div style="flex: 1; border: 1px dashed rgba(0,0,0,0.02); border-radius: 8px; box-sizing: border-box; background: transparent;"></div>
+                              <div style="flex: 1; padding: 4px 6px; border-radius: 8px; font-size: 9px; font-weight: bold; background: #94a3b812; border: 1px dashed #94a3b830; text-align: center; color: #64748b; line-height: 1.4; font-family: 'Cairo', sans-serif; display: flex; flex-direction: column; justify-content: center; box-sizing: border-box; min-height: 90px;">
+                                 <div style="font-size: 13px; margin-bottom: 2px;">🌸</div>
+                                 <div>يوم مراجعة حرة</div>
+                              </div>
+                              <div style="flex: 1; border: 1px dashed rgba(0,0,0,0.02); border-radius: 8px; box-sizing: border-box; background: transparent; min-height: 90px;"></div>
+                              <div style="flex: 1; border: 1px dashed rgba(0,0,0,0.02); border-radius: 8px; box-sizing: border-box; background: transparent; min-height: 90px;"></div>
+                              <div style="flex: 1; border: 1px dashed rgba(0,0,0,0.02); border-radius: 8px; box-sizing: border-box; background: transparent; min-height: 90px;"></div>
+                            `;
+                            }
+
+                            // Group logic for New Memorization & Consolidation
+                            const isThreeGroup =
+                              d_week === 0 ||
+                              d_week === 1 ||
+                              d_week === 3 ||
+                              d_week === 4;
+                            const groupedSlots = isThreeGroup
+                              ? [slots[0], slots[1], slots[2]]
+                              : [slots[0], slots[1]];
+                            const hasGroupedTasks = groupedSlots.some(
+                              (t) => t !== null,
+                            );
+
+                            let groupedHTML = "";
+                            if (hasGroupedTasks) {
+                              let sharedPortion = "";
+                              groupedSlots.forEach((t) => {
+                                if (t && !sharedPortion) {
+                                  const parsed = parseCustomTask(t.title);
+                                  if (parsed) {
+                                    sharedPortion = parsed.portion;
+                                  }
+                                }
+                              });
+                              if (!sharedPortion) {
+                                const activeT = groupedSlots.find(
+                                  (t) => t !== null,
+                                );
+                                if (activeT) {
+                                  sharedPortion = activeT.title
+                                    .replace(
+                                      /^(استماع|حفظ|تثبيت|تسميع|مراجعة|تثبيت المقدار الجديد|حفظ جديد)[:\s]*/,
+                                      "",
+                                    )
+                                    .trim();
+                                }
+                              }
+
+                              const actionBars = groupedSlots
+                                .map((t) => {
+                                  if (!t) return "";
+                                  const isCastleRev =
+                                    getCastleIndexFromTaskTitle(t.title);
+                                  let taskColor = getTaskColor(t.type);
+                                  if (isCastleRev !== null) {
+                                    taskColor =
+                                      CASTLES_THEMES[isCastleRev].color;
+                                  }
+                                  const parsed = parseCustomTask(t.title);
+                                  const actionText = parsed
+                                    ? parsed.action
+                                    : t.title;
+
+                                  return `
+                                  <div style="padding: 3px 6px; border-radius: 5px; font-size: 8.8px; font-weight: bold; background: ${taskColor}12; border: 1.2px solid ${taskColor}25; color: ${taskColor}; text-align: right; line-height: 1.25; display: flex; align-items: center; justify-content: space-between; flex: 1; min-height: 20px; box-sizing: border-box;">
+                                    <span style="font-size: 8.8px; font-weight: 850; white-space: nowrap;">${actionText}</span>
+                                    ${t.targetCount > 1 ? `<span style="font-size: 7px; opacity: 0.85; font-family: 'Cairo', sans-serif;">تكرار: ${t.targetCount}x</span>` : ""}
+                                  </div>
+                                `;
+                                })
+                                .filter(Boolean)
+                                .join("");
+
+                              const flexCount = isThreeGroup ? 3 : 2;
+                              groupedHTML = `
+                                <div style="flex: ${flexCount}; padding: 5px; border-radius: 8px; border: 1.5px dashed ${dayCastleTheme.color}35; background: ${dayCastleTheme.color}04; display: flex; flex-direction: column; justify-content: flex-start; gap: 4px; box-sizing: border-box; overflow: hidden;">
+                                   <!-- Shared Portion / Assigned Verses -->
+                                   <div style="font-size: 8.2px; font-weight: 800; color: #1e293b; background: #ffffff; border: 1.2px solid ${dayCastleTheme.color}25; padding: 2px 4px; border-radius: 4px; text-align: center; overflow-wrap: break-word; word-break: break-word; line-height: 1.2; font-family: 'Cairo', sans-serif; display: flex; align-items: center; justify-content: center; min-height: 24px;">
+                                     ${sharedPortion || "المقرر اليومي"}
+                                   </div>
+                                   <!-- Action Bars Container -->
+                                   <div style="display: flex; flex-direction: column; gap: 3.5px; flex-grow: 1; justify-content: flex-start;">
+                                     ${actionBars}
+                                   </div>
+                                </div>
+                              `;
+                            } else {
+                              const flexCount = isThreeGroup ? 3 : 2;
+                              groupedHTML = `<div style="flex: ${flexCount}; border: 1px dashed rgba(0,0,0,0.02); border-radius: 8px; box-sizing: border-box; background: transparent;"></div>`;
+                            }
+
+                            const emptySlot2HTML = !isThreeGroup
+                              ? `<div style="flex: 1; border: 1px dashed rgba(0,0,0,0.02); border-radius: 8px; box-sizing: border-box; background: transparent;"></div>`
+                              : "";
+
+                            // Helper helper to render slot 3 & slot 4
+                            const renderSingleSlot = (t: any) => {
+                              if (!t) {
+                                return `<div style="flex: 1; border: 1px dashed rgba(0,0,0,0.02); border-radius: 8px; box-sizing: border-box; background: transparent;"></div>`;
+                              }
+
+                              const isCastleRev = getCastleIndexFromTaskTitle(
+                                t.title,
+                              );
+                              let taskColor = getTaskColor(t.type);
+                              if (isCastleRev !== null) {
+                                taskColor = CASTLES_THEMES[isCastleRev].color;
+                              }
+
+                              const customParsed = parseCustomTask(t.title);
+                              if (customParsed) {
+                                return `
+                                  <div style="flex: 1; padding: 4px 6px; border-radius: 8px; font-size: 9px; font-weight: bold; background: ${taskColor}12; border: 1px solid ${taskColor}25; text-align: right; color: ${taskColor}; line-height: 1.35; font-family: 'Cairo', sans-serif; display: flex; flex-direction: column; justify-content: space-between; box-sizing: border-box;">
+                                     <!-- Portion -->
+                                     <div style="font-size: 8.2px; font-weight: 800; color: #1e293b; background: #ffffff; border: 1.2px solid ${taskColor}20; padding: 2px 4px; border-radius: 4px; margin-bottom: 2px; white-space: normal; line-height: 1.15; text-align: center; overflow-wrap: break-word; word-break: break-word;">
+                                       ${customParsed.portion}
+                                     </div>
+                                     <!-- Action -->
+                                     <div style="display: flex; align-items: center; gap: 3px; margin-top: auto; border-top: 1px dashed ${taskColor}20; padding-top: 1.5px;">
+                                       <span style="font-size: 9px; font-weight: 850; color: ${taskColor}; white-space: nowrap;">${customParsed.action}</span>
+                                     </div>
+                                     ${t.targetCount > 1 ? `<div style="opacity: 0.85; font-size: 7px; margin-top: 1px; text-align: left;">تكرار: ${t.targetCount}x</div>` : ""}
+                                  </div>
+                                `;
+                              }
+
+                              return `
+                                <div style="flex: 1; padding: 4px 6px; border-radius: 8px; font-size: 9px; font-weight: bold; background: ${taskColor}12; border: 1px solid ${taskColor}25; text-align: right; color: ${taskColor}; line-height: 1.3; font-family: 'Cairo', sans-serif; display: flex; flex-direction: column; justify-content: flex-start; box-sizing: border-box;">
+                                   <div style="display: flex; align-items: flex-start; gap: 3px;">
+                                     <span style="font-weight: normal; font-size: 10px; margin-top: -1.5px; flex-shrink: 0;">☐</span>
+                                     <span style="width: 100%; white-space: normal; line-height: 1.22; overflow-wrap: break-word; word-break: break-word; font-size: 8.5px;">${t.title}</span>
+                                   </div>
+                                   ${t.targetCount > 1 ? `<div style="opacity: 0.85; font-size: 7px; margin-top: auto; padding-top: 1px; text-align: left;">تكرار: ${t.targetCount}x</div>` : ""}
+                                </div>
+                              `;
+                            };
+
+                            return (
+                              groupedHTML +
+                              emptySlot2HTML +
+                              renderSingleSlot(slots[3]) +
+                              renderSingleSlot(slots[4])
+                            );
+                          })()}
+                        </div>
+
+                        <!-- Date at Bottom (Base of Column) -->
+                        <div style="margin-top: auto; padding-top: 8px; border-top: 2px dashed ${dayCastleTheme.color}25; text-align: center;">
+                           <div style="font-size: 14px; font-weight: 900; color: ${dayCastleTheme.textColor}; font-family: 'Cairo', sans-serif;">${dayName}</div>
+                           <div style="font-size: 9px; color: #D4AF37; font-weight: bold; margin-top: 2px; font-family: 'Cairo', sans-serif;">${hijriDateStr}</div>
+                           <div style="font-size: 9px; color: #888; font-weight: bold; margin-top: 1px; font-family: 'Cairo', sans-serif;">${dayDateStr}</div>
+                        </div>
+                        
+                      </div>
+                    </div>
+                  `;
+                  })
+                  .join("")}
+              </div>
+
+              <!-- Page Footer -->
+              <div style="margin-top: 15px; padding-top: 8px; border-top: 1px dashed #E5E7EB; display: flex; justify-content: space-between; align-items: center; width: 100%; font-size: 11px; color: #9CA3AF; font-weight: bold; height: 20px;">
+                <div style="font-family: 'Cairo', sans-serif;">
+                  برنامج القلاع السبع للتمكين | صفحة ${i + 1} من ${chunks.length}
+                </div>
+                <div style="font-family: 'Cairo', sans-serif;">
+                  تم استخراج هذه الخطة التراكمية بواسطة "خطة الحفظ الذكية" - ${new Date().toLocaleDateString("ar-EG")}
+                </div>
+              </div>
+            </div>
+          `;
+        } else {
+          // Standard style
+          const titleText = activePlan.isSevenCastles
+            ? "خطة القلاع السبع لحفظ القرآن الكريم"
+            : activePlan.planType === "review"
+              ? "خطة مراجعة القرآن الكريم"
+              : "خطة حفظ القرآن الكريم";
+          const subtitleText = activePlan.isSevenCastles
+            ? `خطة القلاع السبع - أسبوع ${i + 1}`
+            : activePlan.planType === "review"
+              ? `خطة مراجعة - أسبوع ${i + 1}`
+              : `${activePlan.juzNumber ? `الجزء رقم ${activePlan.juzNumber}` : "خطة مخصصة"} - أسبوع ${i + 1}`;
+
+          pageEl.innerHTML = `
+            <div style="padding: 24px; background: #FDFBF7; height: 1123px; width: 794px; box-sizing: border-box; font-family: 'Cairo', sans-serif; display: flex; flex-direction: column; overflow: hidden;">
+              <div style="text-align: center; margin-bottom: 15px; border-bottom: 2px solid #1A2E1A; padding-bottom: 8px;">
+                <h1 style="font-size: 22px; color: #1A2E1A; margin: 0; font-family: 'Cairo', sans-serif;">${titleText}</h1>
+                <p style="font-size: 14px; color: #D4AF37; margin: 4px 0; font-family: 'Cairo', sans-serif;">${subtitleText}</p>
+              </div>
+              
+              <table style="width: 100%; border-collapse: collapse; font-size: 13px; flex-grow: 1; border: 2px solid #1A2E1A;">
+                <thead>
+                  <tr style="background: #1A2E1A; color: white;">
+                    <th style="padding: 8px 12px; border: 2px solid #1A2E1A; text-align: right; width: 25%;">اليوم والتاريخ</th>
+                    <th style="padding: 8px 12px; border: 2px solid #1A2E1A; text-align: right;">المهام المطلوبة</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${chunk
+                    .map((day, idx) => {
+                      const dayName = getArabicDayName(day.date);
+                      const dayDateStr = format(day.date, "yyyy/MM/dd");
+                      const hijriDateStr = getHijriDate(day.date);
+                      return `
+                      <tr style="background: ${idx % 2 === 0 ? "white" : "#f9f9f9"}">
+                        <td style="padding: 8px 12px; border: 2px solid #1A2E1A;">
+                          <div style="font-weight: bold; font-family: 'Cairo', sans-serif; font-size: 13.5px;">${dayName}</div>
+                          <div style="font-size: 10.5px; color: #b45309; font-weight: bold; margin-top: 2px; font-family: 'Cairo', sans-serif;">${hijriDateStr}</div>
+                          <div style="font-size: 11px; color: #666; font-family: 'Cairo', sans-serif;">${dayDateStr}</div>
+                        </td>
+                        <td style="padding: 8px 12px; border: 2px solid #1A2E1A;">
+                          <ul style="padding-right: 0; margin: 0; font-family: 'Cairo', sans-serif; list-style: none;">
+                            ${(() => {
+                              if (!day.tasks || day.tasks.length === 0) {
+                                return `<li style="color: #666; font-family: 'Cairo', sans-serif; font-weight: bold; font-size: 13px;">يوم راحة</li>`;
+                              }
+
+                              const getCleanGroupLabel = (
+                                title: string,
+                              ): string => {
+                                let clean = title;
+
+                                // Dynamically split and remove action word prefix if it exists before any colon
+                                if (clean.includes(":")) {
+                                  const parts = clean.split(":");
+                                  const prefix = parts[0];
+                                  const actionWords = [
+                                    "حفظ",
+                                    "تثبيت",
+                                    "مراجعة",
+                                    "تسميع",
+                                    "استماع",
+                                    "القلعة",
+                                  ];
+                                  if (
+                                    actionWords.some((w) => prefix.includes(w))
+                                  ) {
+                                    clean = parts.slice(1).join(":").trim();
+                                  }
+                                }
+
+                                // Remove prefix patterns
+                                clean = clean.replace(
+                                  /^(?:تسميع تثبيت|تسميع التثبيت|استماع تثبيت|استماع التثبيت|تسميع|تثبيت|حفظ الجديد|حفظ جديد|حفظ|استماع|مراجعة)\s+/g,
+                                  "",
+                                );
+
+                                // Remove trailing " غيباً"
+                                clean = clean.replace(/ غيباً$/g, "");
+
+                                return clean.trim();
+                              };
+
+                              const getTaskColor = (type: string) => {
+                                switch (type) {
+                                  case "memorization":
+                                    return "#059669"; // emerald-600
+                                  case "listening":
+                                    return "#0284c7"; // sky-600
+                                  case "fixation":
+                                    return "#b45309"; // amber-700
+                                  case "review":
+                                    return "#be123c"; // rose-700
+                                  case "cumulative_review":
+                                    return "#0f766e"; // teal-700
+                                  case "recitation":
+                                    return "#4338ca"; // indigo-700
+                                  default:
+                                    return "#333333";
+                                }
+                              };
+
+                              // Group tasks that have same pages OR same clean group label if they don't have pages
+                              const dayGroups: {
+                                key: string;
+                                label: string;
+                                tasks: any[];
+                              }[] = [];
+                              day.tasks.forEach((t: any) => {
+                                const cleanLabel = getCleanGroupLabel(t.title);
+                                const partMatch = t.id
+                                  ? t.id.toString().match(/-part\d+/)
+                                  : null;
+                                const partSuffix = partMatch
+                                  ? partMatch[0]
+                                  : "";
+
+                                const key =
+                                  t.pages && t.pages.length > 0
+                                    ? t.pages.join(",") + partSuffix
+                                    : cleanLabel + partSuffix;
+
+                                let group = dayGroups.find(
+                                  (g) => g.key === key,
+                                );
+                                if (!group) {
+                                  group = { key, label: cleanLabel, tasks: [] };
+                                  dayGroups.push(group);
+                                }
+                                group.tasks.push(t);
+                              });
+
+                              return dayGroups
+                                .map((group, groupIdx) => {
+                                  if (group.tasks.length === 1) {
+                                    // Render normally as a single task if no merging happened
+                                    const t = group.tasks[0];
+                                    const isCastleRev =
+                                      getCastleIndexFromTaskTitle(t.title);
+                                    const color =
+                                      isCastleRev !== null
+                                        ? CASTLES_THEMES[isCastleRev].color
+                                        : getTaskColor(t.type);
+                                    const repeatText =
+                                      t.targetCount > 1
+                                        ? ` (تكرار: ${t.targetCount}x)`
+                                        : "";
+
+                                    return `
+                                    <li style="padding-bottom: 4px; margin-bottom: 4px; font-family: 'Cairo', sans-serif; font-weight: bold; font-size: 13.5px; line-height: 1.35; display: block; color: ${color}; ${groupIdx !== dayGroups.length - 1 ? "border-bottom: 1px dashed #ccc;" : ""}">
+                                      <span style="font-size: 16px; margin-left: 6px; font-weight: normal; vertical-align: middle;">☐</span>
+                                      <span style="vertical-align: middle;">${t.title}${repeatText}</span>
+                                    </li>
+                                  `;
+                                  } else {
+                                    // Merged tasks! Render group label and checkboxes below it
+                                    const firstTask = group.tasks[0];
+                                    const isCastleRev =
+                                      getCastleIndexFromTaskTitle(
+                                        firstTask.title,
+                                      );
+                                    const groupColor =
+                                      isCastleRev !== null
+                                        ? CASTLES_THEMES[isCastleRev].color
+                                        : "#1A2E1A"; // Primary dark green for group text
+
+                                    return `
+                                    <li style="padding-bottom: 6px; margin-bottom: 6px; font-family: 'Cairo', sans-serif; display: block; ${groupIdx !== dayGroups.length - 1 ? "border-bottom: 1px dashed #ccc;" : ""}">
+                                      <!-- Group Label: the Quranic verses / target -->
+                                      <div style="font-weight: 800; font-size: 14px; color: ${groupColor}; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;">
+                                        <span>📖</span>
+                                        <span>المقرر: ${group.label}</span>
+                                      </div>
+                                      <!-- Sub-tasks Checkboxes -->
+                                      <div style="display: flex; flex-direction: row; flex-wrap: wrap; gap: 12px; margin-right: 10px; align-items: center;">
+                                        ${group.tasks
+                                          .map((t: any) => {
+                                            const itemCastleRev =
+                                              getCastleIndexFromTaskTitle(
+                                                t.title,
+                                              );
+                                            const tColor =
+                                              itemCastleRev !== null
+                                                ? CASTLES_THEMES[itemCastleRev]
+                                                    .color
+                                                : getTaskColor(t.type);
+                                            const taskName =
+                                              t.type === "memorization"
+                                                ? "حفظ"
+                                                : t.type === "fixation"
+                                                  ? "تثبيت"
+                                                  : t.type === "review"
+                                                    ? "مراجعة"
+                                                    : t.type ===
+                                                        "cumulative_review"
+                                                      ? "تراكمي"
+                                                      : t.type === "listening"
+                                                        ? "استماع"
+                                                        : "تسميع";
+                                            const repeatText =
+                                              t.targetCount > 1
+                                                ? ` (${t.targetCount}x)`
+                                                : "";
+                                            return `
+                                            <span style="font-size: 12.5px; font-weight: bold; color: ${tColor}; display: flex; align-items: center; gap: 4px;">
+                                              <span style="font-size: 16px; font-weight: normal; color: #777; vertical-align: middle;">☐</span>
+                                              <span style="vertical-align: middle;">${taskName}${repeatText}</span>
+                                            </span>
+                                          `;
+                                          })
+                                          .join("")}
+                                      </div>
+                                    </li>
+                                  `;
+                                  }
+                                })
+                                .join("");
+                            })()}
+                          </ul>
+                        </td>
+                      </tr>
+                    `;
+                    })
+                    .join("")}
+                </tbody>
+              </table>
+              
+              <div style="margin-top: auto; padding-top: 15px; text-align: center; font-size: 11px; color: #999; font-family: 'Cairo', sans-serif;">
+                صفحة ${i + 1} من ${chunks.length} | تم استخراج هذه الخطة بواسطة "خطة الحفظ الذكية" - ${new Date().toLocaleDateString("ar-EG")}
+              </div>
+            </div>
+          `;
+        }
+
+        tempContainer.appendChild(pageEl);
+        pageElements.push(pageEl);
+      }
+
+      if (shouldPrintDirectly) {
+        setExportProgress("جاري فتح نافذة الطباعة مباشرة...");
+        const printWindow = window.open("", "_blank");
+        if (printWindow) {
+          printWindow.document.open();
+          printWindow.document.write(`
+            <!DOCTYPE html>
+            <html dir="rtl">
+            <head>
+              <meta charset="utf-8" />
+              <title>${planTypeName}</title>
+              <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+              <style>
+                @media print {
+                  @page {
+                    size: A4 ${isCastleTowerStyle ? 'landscape' : 'portrait'};
+                    margin: 0;
+                  }
+                  body {
+                    margin: 0;
+                    padding: 0;
+                    background-color: white;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                  }
+                  .print-page {
+                    page-break-after: always;
+                    break-after: page;
+                    width: ${isCastleTowerStyle ? '297mm' : '210mm'} !important;
+                    height: ${isCastleTowerStyle ? '210mm' : '297mm'} !important;
+                    box-sizing: border-box !important;
+                    overflow: hidden !important;
+                    position: relative !important;
+                  }
+                  .print-page > div {
+                    width: 100% !important;
+                    height: 100% !important;
+                    min-height: 100% !important;
+                    max-height: 100% !important;
+                    box-sizing: border-box !important;
+                  }
+                  * {
+                    font-family: 'Cairo', sans-serif !important;
+                    letter-spacing: normal !important;
+                    word-spacing: normal !important;
+                    -webkit-font-smoothing: antialiased !important;
+                    text-rendering: optimizeLegibility !important;
+                  }
+                }
+                body {
+                  font-family: 'Cairo', sans-serif;
+                  margin: 0;
+                  padding: 20px;
+                  background-color: #f3f4f6;
+                  display: flex;
+                  flex-direction: column;
+                  align-items: center;
+                  gap: 20px;
+                }
+                .print-page {
+                  width: ${isCastleTowerStyle ? '1123px' : '794px'};
+                  height: ${isCastleTowerStyle ? '794px' : '1123px'};
+                  box-sizing: border-box;
+                  background: white;
+                  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+                  position: relative;
+                  overflow: hidden;
+                }
+                * {
+                  font-family: 'Cairo', sans-serif !important;
+                }
+              </style>
+            </head>
+            <body>
+              <div class="print-container">
+                ${pageElements.map(el => `<div class="print-page">${el.innerHTML}</div>`).join('')}
+              </div>
+              <script>
+                window.onload = function() {
+                  const images = document.getElementsByTagName("img");
+                  const promises = Array.from(images).map(img => {
+                    if (img.complete) return Promise.resolve();
+                    return new Promise(resolve => {
+                      img.onload = () => resolve();
+                      img.onerror = () => resolve();
+                    });
+                  });
+                  Promise.all(promises).then(() => {
+                    setTimeout(() => {
+                      window.focus();
+                      window.print();
+                    }, 500);
+                  });
+                };
+              </script>
+            </body>
+            </html>
+          `);
+          printWindow.document.close();
+        } else {
+          alert("الرجاء السماح بالنوافذ المنبثقة لفتح نافذة الطباعة المباشرة");
+        }
+
+        if (document.body.contains(tempContainer)) {
+          document.body.removeChild(tempContainer);
+        }
+        setIsExporting(false);
+        return;
+      }
+
+      // Loop over and capture each page element sequentially using html2canvas
+      for (let i = 0; i < pageElements.length; i++) {
+        const progressMessage = i === 0
+          ? `جاري معالجة صفحة الغلاف الرئيسية... (إجمالي ${pageElements.length} صفحات)`
+          : `جاري معالجة الأسبوع ${i} من أصل ${pageElements.length - 1}... (إجمالي ${pageElements.length} صفحات)`;
+        setExportProgress(progressMessage);
+
+        const pageEl = pageElements[i];
+
+        const restoreColors = patchColorsForHtml2Canvas(pageEl);
+        let canvas;
+        try {
+          canvas = await html2canvas(pageEl, {
+            scale: 3,
+            useCORS: true,
+            backgroundColor: isCastleTowerStyle ? "#FFFDF9" : "#FDFBF7",
+            logging: false,
+          });
+        } finally {
+          restoreColors();
+        }
+
+        const imgData = canvas.toDataURL("image/png");
+
+        if (i > 0) {
+          if (isCastleTowerStyle) {
+            pdf.addPage("a4", "l");
+          } else {
+            pdf.addPage("a4", "p");
+          }
+        }
+
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = pdf.internal.pageSize.getHeight();
+
+        pdf.addImage(
+          imgData,
+          "PNG",
+          0,
+          0,
+          pdfWidth,
+          pdfHeight,
+          undefined,
+          "FAST",
+        );
+
+        canvas.width = 0;
+        canvas.height = 0;
+      }
+
+      setExportProgress("جاري تحضير ملف PDF للمشاركة...");
+
+      // Describe the plan (Sura or Juz details and Memorization/Review Amount)
+      const minPage = Math.min(activePlan.startPage, activePlan.endPage);
+      const maxPage = Math.max(activePlan.startPage, activePlan.endPage);
+
+      let descriptionStr = "";
+      if (activePlan.isSevenCastles) {
+        descriptionStr = "منظومة_القلاع_السبع";
+      } else if (activePlan.planType === "review") {
+        if (activePlan.isSpecificReview) {
+          if (
+            activePlan.selectedReviewSurahs &&
+            activePlan.selectedReviewSurahs.length > 0
+          ) {
+            descriptionStr = `مراجعة_سورة_${activePlan.selectedReviewSurahs.join("_و_")}`;
+          } else if (
+            activePlan.selectedReviewJuzs &&
+            activePlan.selectedReviewJuzs.length > 0
+          ) {
+            descriptionStr = `مراجعة_الأجزاء_${activePlan.selectedReviewJuzs.sort((a, b) => a - b).join("_و_")}`;
+          } else {
+            descriptionStr = "مراجعة_حفظ_مخصص";
+          }
+        } else {
+          descriptionStr = "مراجعة_القرآن_الكريم";
+        }
+      } else {
+        // Memorization plan
+        if (
+          activePlan.juzPlanStartMode === "surah" &&
+          activePlan.selectedJuzSurahs &&
+          activePlan.selectedJuzSurahs.length > 0
+        ) {
+          descriptionStr = `حفظ_سورة_${activePlan.selectedJuzSurahs.join("_و_")}`;
+        } else if (activePlan.juzNumber) {
+          descriptionStr = `حفظ_الجزء_${activePlan.juzNumber}`;
+        } else if (
+          activePlan.selectedJuzsToMemorize &&
+          activePlan.selectedJuzsToMemorize.length > 0
+        ) {
+          descriptionStr = `حفظ_الأجزاء_${activePlan.selectedJuzsToMemorize.sort((a, b) => a - b).join("_و_")}`;
+        } else {
+          // Check overlapping suras
+          const overlapping = SURAH_METADATAList.filter(
+            (s) => s.startPage <= maxPage && s.endPage >= minPage,
+          );
+          if (overlapping.length > 0 && overlapping.length <= 3) {
+            descriptionStr = `حفظ_سورة_${overlapping.map((s) => s.name).join("_و_")}`;
+          } else if (overlapping.length > 3) {
+            descriptionStr = `حفظ_من_سورة_${overlapping[0].name}_إلى_${overlapping[overlapping.length - 1].name}`;
+          } else {
+            descriptionStr = `حفظ_الصفحات_${minPage}_إلى_${maxPage}`;
+          }
+        }
+      }
+
+      const dailyAmountMap: Record<string, string> = {
+        quarter_page: "ربع_صفحة",
+        half_page: "نصف_صفحة",
+        one_page: "صفحة_واحدة",
+        two_pages: "صفحتان",
+        quarter_hizb: "ربع_حزب",
+        three_pages: "3_صفحات",
+        four_pages: "4_صفحات",
+        five_pages: "5_صفحات",
+      };
+
+      const amountSuffix =
+        activePlan.planType === "review"
+          ? activePlan.reviewAmountType === "pages"
+            ? `_بمقدار_${activePlan.reviewPageAmount}_صفحات_يوميا`
+            : activePlan.reviewJuzAmount
+              ? `_بمقدار_${activePlan.reviewJuzAmount}_أجزاء_يوميا`
+              : ""
+          : activePlan.dailyAmount
+            ? `_بمقدار_${dailyAmountMap[activePlan.dailyAmount] || ""}_يوميا`
+            : "";
+
+      const stylePrefix = isCastleTowerStyle ? "أبراج_" : "";
+
+      const sanitizeForFilename = (str: string): string => {
+        return str
+          .replace(/\s+/g, "_")
+          .replace(/[^()0-9a-zA-Z\u0600-\u06FF\-_]/g, ""); // Keep Arabic letters, English, numbers, hyphens, and underscores
+      };
+
+      const rawFileName = stylePrefix + descriptionStr + amountSuffix;
+      const fileName = `${sanitizeForFilename(rawFileName)}.pdf`;
+
+      if (shouldPrintDirectly) {
+        setExportProgress("جاري فتح نافذة الطباعة مباشرة...");
+        pdf.autoPrint();
+        const blobUrl = pdf.output('bloburl');
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.right = '0';
+        iframe.style.bottom = '0';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        iframe.style.border = 'none';
+        iframe.src = blobUrl.toString();
+        document.body.appendChild(iframe);
+        iframe.onload = () => {
+          setTimeout(() => {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+          }, 500);
+        };
+      } else {
+        const blob = pdf.output("blob");
+        const file = new File([blob], fileName, { type: "application/pdf" });
+        if (navigator.share) {
+          try {
+            await navigator.share({
+              files: [file],
+              title: "خطة حفظ القرآن الكريم",
+              text: "تفضل ملف خطة حفظ القرآن الكريم الخاصة بي",
+            });
+          } catch (shareError: any) {
+            console.warn("Share failed or was cancelled", shareError);
+            if (shareError && shareError.name === "AbortError") {
+              // User cancelled or action was not allowed, do not force download
+            } else {
+              setShareModalConfig({ isOpen: true, fileName, pdf });
+            }
+          }
+        } else {
+          setShareModalConfig({ isOpen: true, fileName, pdf });
+        }
+      }
+
+      if (document.body.contains(tempContainer)) {
+        document.body.removeChild(tempContainer);
+      }
+    } catch (error) {
+      console.error("Export failed", error);
+      console.error("حدث خطأ أثناء التصدير.");
+    } finally {
+      setIsExporting(false);
+      setIsPrinting(false);
+      setExportProgress("");
+    }
+  };
+
+  const exportBookletPDF = async (isCastleTowerStyle: boolean = false, shouldPrintDirectly: boolean = false) => {
+    if (!activePlan) return;
+
+    setIsExportingBooklet(true);
+    if (shouldPrintDirectly) {
+      setIsPrintingBooklet(true);
+    }
+    setExportProgressBooklet("جاري تحضير صفحات التقرير الأصلي...");
+
+    // Allow React state updates to render in the browser immediately to provide instant visual feedback

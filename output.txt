@@ -1,0 +1,131 @@
+
+      // Booklet imposition
+      setExportProgressBooklet("جاري تطبيق نظام الفرز والترتيب الاحترافي للكتيب (Booklet Imposition)...");
+
+      const originalCount = capturedImages.length;
+      const remainder = originalCount % 4;
+      const padCount = remainder === 0 ? 0 : 4 - remainder;
+      const paddedImages = [...capturedImages];
+      for (let i = 0; i < padCount; i++) {
+        paddedImages.push("");
+      }
+
+      const N = paddedImages.length;
+      const S = N / 4;
+
+      let jsPdfPaper = "a4";
+      if (bookletPaperSize === "a3_to_a4") jsPdfPaper = "a3";
+      else if (bookletPaperSize === "letter") jsPdfPaper = "letter";
+      else if (bookletPaperSize === "legal") jsPdfPaper = "legal";
+
+
+
+      const pdfOrientation = isCastleTowerStyle ? "p" : "l";
+      const pdf = new jsPDF(pdfOrientation, "mm", jsPdfPaper);
+
+      const W = pdf.internal.pageSize.getWidth();
+      const H = pdf.internal.pageSize.getHeight();
+      const g = bookletGutter;
+      const outerMargin = bookletOuterMargin;
+
+      let slotW, slotH, leftX, rightX, topY, bottomY;
+      
+      if (isCastleTowerStyle) {
+        const halfH = H / 2;
+        slotW = W - 2 * outerMargin;
+        slotH = halfH - outerMargin - g / 2;
+        topY = outerMargin;
+        bottomY = halfH + g / 2;
+        leftX = outerMargin; // not really left/right, just full width
+        rightX = outerMargin;
+      } else {
+        const halfW = W / 2;
+        slotW = halfW - outerMargin - g / 2;
+        slotH = H - 2 * outerMargin;
+        leftX = outerMargin;
+        rightX = halfW + g / 2;
+        topY = outerMargin;
+        bottomY = outerMargin;
+      }
+
+      for (let s = 0; s < S; s++) {
+        // FRONT SIDE
+        if (s > 0) {
+          pdf.addPage(jsPdfPaper, pdfOrientation);
+        }
+        
+        // Page 0 (frontLeftIdx) goes to the LEFT half (or Top).
+        const frontLeftIdx = 2 * s; 
+        if (paddedImages[frontLeftIdx]) {
+          pdf.addImage(
+            paddedImages[frontLeftIdx],
+            "PNG",
+            isCastleTowerStyle ? leftX : leftX, // Castle: top
+            isCastleTowerStyle ? topY : topY,
+            slotW,
+            slotH,
+            undefined,
+            "FAST"
+          );
+        }
+
+        // Page N-1 (frontRightIdx) goes to the RIGHT half (or Bottom).
+        const frontRightIdx = N - 1 - 2 * s;
+        if (paddedImages[frontRightIdx]) {
+          pdf.addImage(
+            paddedImages[frontRightIdx],
+            "PNG",
+            isCastleTowerStyle ? leftX : rightX, // Castle: bottom
+            isCastleTowerStyle ? bottomY : topY,
+            slotW,
+            slotH,
+            undefined,
+            "FAST"
+          );
+        }
+
+        // BACK SIDE
+        pdf.addPage(jsPdfPaper, pdfOrientation);
+
+        // Page 1 (backRightIdx) goes to the RIGHT half (or Top).
+        const backRightIdx = 2 * s + 1; 
+        if (paddedImages[backRightIdx]) {
+          pdf.addImage(
+            paddedImages[backRightIdx],
+            "PNG",
+            isCastleTowerStyle ? leftX : rightX, // Castle: top
+            isCastleTowerStyle ? topY : topY,
+            slotW,
+            slotH,
+            undefined,
+            "FAST"
+          );
+        }
+        
+        // Page N-2 (backLeftIdx) goes to the LEFT half (or Bottom).
+        const backLeftIdx = N - 2 - 2 * s; 
+        if (paddedImages[backLeftIdx]) {
+          pdf.addImage(
+            paddedImages[backLeftIdx],
+            "PNG",
+            isCastleTowerStyle ? leftX : leftX, // Castle: bottom
+            isCastleTowerStyle ? bottomY : topY,
+            slotW,
+            slotH,
+            undefined,
+            "FAST"
+          );
+        }
+      }
+
+      setExportProgressBooklet("جاري تحضير ملف الكتيب للمشاركة...");
+
+      const minPage = Math.min(activePlan.startPage, activePlan.endPage);
+      const maxPage = Math.max(activePlan.startPage, activePlan.endPage);
+
+      let descriptionStr = "";
+      if (activePlan.isSevenCastles) {
+        descriptionStr = "منظومة_القلاع_السبع";
+      } else if (activePlan.planType === "juz") {
+        descriptionStr = `خطة_حفظ_الجزء_${activePlan.juzNumber}`;
+      } else if ((activePlan.planType as any) === "surah") {

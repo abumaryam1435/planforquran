@@ -1,0 +1,112 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile data",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "createdAt", "updatedAt"]
+    },
+    "QuranPlan": {
+      "title": "QuranPlan",
+      "description": "A user's memorization plan",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "userId": { "type": "string" },
+        "juzNumber": { "type": "number" },
+        "startPage": { "type": "number" },
+        "endPage": { "type": "number" },
+        "dailyAmount": { "type": "string" },
+        "startDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["active", "paused", "completed"] },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "planType": { "type": "string" },
+        "reviewJuzAmount": { "type": "number" },
+        "fixationAmountType": { "type": "string" },
+        "fixationRepetitions": { "type": "number" },
+        "dailyFixationRepetitions": { "type": "number" },
+        "weeklyReviewRepetitions": { "type": "number" },
+        "cumulativeReviewRepetitions": { "type": "number" },
+        "includeFixation": { "type": "boolean" },
+        "includeRecitation": { "type": "boolean" },
+        "fixationRepetitionMode": { "type": "string" },
+        "firstDayOfWeek": { "type": "number" },
+        "oldMemorizedPages": { "type": "array", "items": { "type": "number" } },
+        "hasOldMemorization": { "type": "boolean" },
+        "oldMemorizationReviewMode": { "type": "string" },
+        "oldMemorizationCustomDays": { "type": "number" },
+        "isSevenCastles": { "type": "boolean" },
+        "isSevenCastlesDescending": { "type": "boolean" },
+        "sevenCastlesStartMode": { "type": "string" },
+        "isFlexible": { "type": "boolean" },
+        "flexibleDayConfigs": { "type": "string" },
+        "flexibleDurationMode": { "type": "string" },
+        "flexibleDurationWeeks": { "type": "number" },
+        "flexibleEndDate": { "type": "string" },
+        "flexibleStartMode": { "type": "string" },
+        "selectedJuzsToMemorize": { "type": "array", "items": { "type": "number" } },
+        "isSpecificReview": { "type": "boolean" },
+        "selectedReviewJuzs": { "type": "array", "items": { "type": "number" } },
+        "selectedReviewSurahs": { "type": "array", "items": { "type": "string" } },
+        "reviewPages": { "type": "array", "items": { "type": "number" } },
+        "reviewRangeMode": { "type": "string" },
+        "reviewStartPage": { "type": "number" },
+        "reviewEndPage": { "type": "number" }
+      },
+      "required": ["id", "userId", "startPage", "endPage", "dailyAmount", "startDate", "status", "createdAt", "updatedAt"]
+    },
+    "ProgressLog": {
+      "title": "ProgressLog",
+      "description": "Daily progress tracking",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "userId": { "type": "string" },
+        "planId": { "type": "number" },
+        "date": { "type": "string" },
+        "tasks": { "type": "string" },
+        "note": { "type": "string" }
+      },
+      "required": ["id", "userId", "planId", "date", "tasks"]
+    },
+    "Achievement": {
+      "title": "Achievement",
+      "description": "User achievement unlock",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "icon": { "type": "string" },
+        "dateEarned": { "type": "string" },
+        "type": { "type": "string" }
+      },
+      "required": ["id", "userId", "title", "description", "icon", "dateEarned", "type"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/users/{userId}/plans/{planId}": {
+      "schema": "QuranPlan",
+      "description": "User's Quran plans"
+    },
+    "/users/{userId}/progress/{progressId}": {
+      "schema": "ProgressLog",
+      "description": "User's daily progress logs"
+    },
+    "/users/{userId}/achievements/{achievementId}": {
+      "schema": "Achievement",
+      "description": "User's achievements"
+    }
+  }
+}
